@@ -62,8 +62,16 @@ const routes: RouteRecordRaw[] = [
   }
 ]
 
+// Get base path from environment or default to '/'
+const getBasePath = () => {
+  if (import.meta.env.BASE_URL) {
+    return import.meta.env.BASE_URL
+  }
+  return '/'
+}
+
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(getBasePath()),
   routes
 })
 

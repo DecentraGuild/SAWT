@@ -85,6 +85,60 @@ export const VOTES_BY_PROPOSAL_ID_SIMPLE_QUERY = gql`
         voteResult
         votingPower
         walletPublicKey
+        createdAt
+      }
+    }
+  }
+`
+
+/**
+ * Query to fetch all PIPs with their votes
+ * This fetches all proposals and their associated votes in a single query
+ * Runs automatically on page load to enable leaderboard views without wallet
+ * 
+ * @example
+ * query AllPIP {
+ *   allStarAtlasProposals(condition: {}, orderBy: PIP_NUMBER_ASC) {
+ *     nodes {
+ *       status
+ *       votingStartsAt
+ *       votingEndsAt
+ *       title
+ *       pipNumber
+ *       id
+ *       discordLink
+ *       createdAt
+ *       starAtlasProposalVotesByProposalId {
+ *         nodes {
+ *           voteResult
+ *           votingPower
+ *           walletPublicKey
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ */
+export const ALL_PIP_QUERY = gql`
+  query AllPIP {
+    allStarAtlasProposals(condition: {}, orderBy: PIP_NUMBER_ASC) {
+      nodes {
+        status
+        votingStartsAt
+        votingEndsAt
+        title
+        pipNumber
+        id
+        discordLink
+        createdAt
+        starAtlasProposalVotesByProposalId {
+          nodes {
+            voteResult
+            votingPower
+            walletPublicKey
+            createdAt
+          }
+        }
       }
     }
   }

@@ -15,7 +15,7 @@
         <tr 
           v-for="(row, index) in data" 
           :key="index"
-          class="data-table-row"
+          :class="['data-table-row', props.getRowClass ? props.getRowClass(row, index) : '']"
           @click="$emit('row-click', row)"
         >
           <td v-for="column in columns" :key="column.key" :class="column.class">
@@ -64,6 +64,7 @@ interface Props {
   data: Record<string, any>[]
   summaries?: TableSummary[]
   showSummary?: boolean
+  getRowClass?: (row: Record<string, any>, index: number) => string | string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -183,10 +184,20 @@ function formatUSD(val: number): string {
 .data-table tbody tr.data-table-row {
   cursor: pointer;
   transition: background-color var(--transition-base);
+  position: relative;
 }
 
 .data-table tbody tr.data-table-row:hover {
   background-color: var(--color-bg-tertiary);
+}
+
+/* Wallet voted row highlighting - can be overridden by parent */
+.data-table tbody tr.wallet-voted-row {
+  box-shadow: inset 3px 0 0 #ffd700;
+}
+
+.data-table tbody tr.wallet-voted-row:hover {
+  box-shadow: inset 3px 0 0 #ffd700, 0 0 12px rgba(255, 215, 0, 0.2);
 }
 
 .data-table tbody tr:last-child td {

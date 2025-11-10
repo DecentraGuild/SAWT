@@ -1,9 +1,9 @@
 import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client'
 
-// Use proxy in development to avoid CORS issues, direct URL in production
+// Use proxy in development to avoid CORS issues, Cloudflare proxy in production
 const graphqlUrl = import.meta.env.DEV 
   ? '/graphql' 
-  : 'https://graph.roguedatahub.xyz/graphql'
+  : 'https://graphql-proxy.lorddo3066.workers.dev'
 
 const httpLink = createHttpLink({
   uri: graphqlUrl,

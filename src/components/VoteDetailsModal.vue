@@ -17,12 +17,105 @@
       <div v-if="!loading && !error && results" class="vote-results">
         <div class="results-summary">
           <div class="summary-item">
+            <span class="summary-label">Status:</span>
+            <span class="summary-value" :class="statusClass">{{ proposalStatus }}</span>
+          </div>
+          <div class="summary-item">
             <span class="summary-label">Total Votes:</span>
             <span class="summary-value">{{ results.totalVotes }}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">Total Voting Power:</span>
             <span class="summary-value">{{ formatVotingPower(results.totalVotingPower) }} PVP</span>
+          </div>
+        </div>
+
+        <!-- Compact Results for Active Voting -->
+        <div v-if="voteBreakdown && isVotingActive" class="compact-results">
+          <div class="compact-results-header">
+            <h3 class="compact-title">Current Vote Results</h3>
+            <div class="voting-active-badge">
+              <span class="voting-active-indicator"></span>
+              Voting Active
+            </div>
+          </div>
+          <div class="compact-results-content">
+            <div class="compact-bar-container">
+              <div class="compact-bar">
+                <div 
+                  v-if="voteBreakdown.yes.pvp > 0"
+                  class="compact-bar-segment compact-bar-yes" 
+                  :style="{ width: `${voteBreakdown.yes.percentage}%` }"
+                >
+                  <div class="compact-bar-label">{{ voteBreakdown.yes.percentage.toFixed(1) }}%</div>
+                </div>
+                <div 
+                  v-if="voteBreakdown.no.pvp > 0"
+                  class="compact-bar-segment compact-bar-no" 
+                  :style="{ width: `${voteBreakdown.no.percentage}%` }"
+                >
+                  <div class="compact-bar-label">{{ voteBreakdown.no.percentage.toFixed(1) }}%</div>
+                </div>
+              </div>
+            </div>
+            <div class="compact-stats">
+              <div class="compact-stat-item">
+                <span class="compact-stat-label">Yes:</span>
+                <span class="compact-stat-value">{{ formatVotingPower(voteBreakdown.yes.pvp) }} PVP</span>
+                <span class="compact-stat-count">({{ voteBreakdown.yes.count }})</span>
+              </div>
+              <div class="compact-stat-item">
+                <span class="compact-stat-label">No:</span>
+                <span class="compact-stat-value">{{ formatVotingPower(voteBreakdown.no.pvp) }} PVP</span>
+                <span class="compact-stat-count">({{ voteBreakdown.no.count }})</span>
+              </div>
+            </div>
+            <div v-if="votingEndsAt" class="voting-ends-info">
+              Voting ends: {{ formatDate(votingEndsAt) }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Final Results Breakdown - Only show for finalized proposals -->
+        <div v-if="voteBreakdown && isFinalized" class="final-results">
+          <h3 class="final-results-title">Final Results</h3>
+          <div class="winner-badge" :class="winnerClass">
+            <span class="winner-label">{{ winnerText }}</span>
+            <span class="winner-margin">{{ winnerMarginText }}</span>
+          </div>
+          
+          <div class="results-bar-container">
+            <div class="results-bar">
+              <div 
+                v-if="voteBreakdown.yes.pvp > 0"
+                class="bar-segment bar-yes" 
+                :style="{ width: `${voteBreakdown.yes.percentage}%` }"
+              >
+                <div class="bar-label-top">{{ voteBreakdown.yes.percentage.toFixed(1) }}%</div>
+                <div class="bar-label-bottom">{{ formatVotingPower(voteBreakdown.yes.pvp) }} PVP</div>
+              </div>
+              <div 
+                v-if="voteBreakdown.no.pvp > 0"
+                class="bar-segment bar-no" 
+                :style="{ width: `${voteBreakdown.no.percentage}%` }"
+              >
+                <div class="bar-label-top">{{ voteBreakdown.no.percentage.toFixed(1) }}%</div>
+                <div class="bar-label-bottom">{{ formatVotingPower(voteBreakdown.no.pvp) }} PVP</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="results-details">
+            <div class="result-detail-item result-yes">
+              <span class="result-detail-label">Yes:</span>
+              <span class="result-detail-value">{{ formatVotingPower(voteBreakdown.yes.pvp) }} PVP</span>
+              <span class="result-detail-count">({{ voteBreakdown.yes.count }} votes)</span>
+            </div>
+            <div class="result-detail-item result-no">
+              <span class="result-detail-label">No:</span>
+              <span class="result-detail-value">{{ formatVotingPower(voteBreakdown.no.pvp) }} PVP</span>
+              <span class="result-detail-count">({{ voteBreakdown.no.count }} votes)</span>
+            </div>
           </div>
         </div>
 
@@ -136,6 +229,7 @@ import { ref, watch, computed, nextTick } from 'vue'
 import { fetchVoteResultsByProposal, type ProposalVoteResults } from '../services/voteResultsService'
 import { formatVotingPower, formatVoteResult, formatVoteResultFull, formatWallet, formatDate } from '../utils/formatters'
 import { useWalletStore } from '../stores/wallet'
+import { useVotesStore } from '../stores/votes'
 import type { VoteNode } from '../services/votesService'
 import BaseCopyButton from './BaseCopyButton.vue'
 
@@ -148,6 +242,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const walletStore = useWalletStore()
+const votesStore = useVotesStore()
 
 const emit = defineEmits<{
   close: []
@@ -161,6 +256,121 @@ const combinedListRef = ref<HTMLElement | null>(null)
 const combinedItemRefs = ref<Map<string, HTMLElement>>(new Map())
 const groupListRefs = ref<Map<string, HTMLElement>>(new Map())
 const groupItemRefs = ref<Map<string, Map<string, HTMLElement>>>(new Map())
+
+// Get proposal data from pre-fetched data
+const proposalData = computed(() => {
+  if (!props.proposalId) return null
+  return votesStore.getProposalById(props.proposalId)
+})
+
+// Get proposal status from pre-fetched data
+const proposalStatus = computed(() => {
+  return proposalData.value?.status || 'Unknown'
+})
+
+const statusClass = computed(() => {
+  const status = proposalStatus.value.toLowerCase()
+  if (status === 'passed' || status === 'approved') return 'status-passed'
+  if (status === 'rejected' || status === 'failed') return 'status-rejected'
+  if (status === 'active' || status === 'voting') return 'status-active'
+  return 'status-unknown'
+})
+
+// Get voting end date
+const votingEndsAt = computed(() => {
+  return proposalData.value?.votingEndsAt || null
+})
+
+// Check if voting is still active (votingEndsAt is in the future)
+const isVotingActive = computed(() => {
+  if (!votingEndsAt.value) {
+    // If no end date, check status
+    const status = proposalStatus.value.toLowerCase()
+    return status === 'active' || status === 'voting'
+  }
+  const endDate = new Date(votingEndsAt.value)
+  const now = new Date()
+  return endDate > now
+})
+
+// Check if proposal is finalized (not active/voting)
+const isFinalized = computed(() => {
+  return !isVotingActive.value
+})
+
+// Calculate vote breakdown (Yes vs No)
+const voteBreakdown = computed(() => {
+  if (!results.value || results.value.votes.length === 0) return null
+
+  let yesPvp = 0
+  let noPvp = 0
+  let yesCount = 0
+  let noCount = 0
+
+  for (const vote of results.value.votes) {
+    const power = parseFloat(vote.votingPower || '0')
+    const result = (vote.voteResult || '').toLowerCase()
+    
+    if (result === 'yes') {
+      yesPvp += power
+      yesCount++
+    } else if (result === 'no') {
+      noPvp += power
+      noCount++
+    }
+  }
+
+  const totalPvp = yesPvp + noPvp
+  const yesPercentage = totalPvp > 0 ? (yesPvp / totalPvp) * 100 : 0
+  const noPercentage = totalPvp > 0 ? (noPvp / totalPvp) * 100 : 0
+
+  return {
+    yes: {
+      pvp: yesPvp,
+      count: yesCount,
+      percentage: yesPercentage
+    },
+    no: {
+      pvp: noPvp,
+      count: noCount,
+      percentage: noPercentage
+    },
+    totalPvp
+  }
+})
+
+// Determine winner
+const winnerText = computed(() => {
+  if (!voteBreakdown.value) return ''
+  
+  if (voteBreakdown.value.yes.pvp > voteBreakdown.value.no.pvp) {
+    return 'Yes Won'
+  } else if (voteBreakdown.value.no.pvp > voteBreakdown.value.yes.pvp) {
+    return 'No Won'
+  } else {
+    return 'Tie'
+  }
+})
+
+const winnerClass = computed(() => {
+  if (!voteBreakdown.value) return ''
+  
+  if (voteBreakdown.value.yes.pvp > voteBreakdown.value.no.pvp) {
+    return 'winner-yes'
+  } else if (voteBreakdown.value.no.pvp > voteBreakdown.value.yes.pvp) {
+    return 'winner-no'
+  } else {
+    return 'winner-tie'
+  }
+})
+
+const winnerMarginText = computed(() => {
+  if (!voteBreakdown.value) return ''
+  
+  const margin = Math.abs(voteBreakdown.value.yes.pvp - voteBreakdown.value.no.pvp)
+  if (margin === 0) return 'Tied'
+  return `by ${formatVotingPower(margin)} PVP`
+})
 
 // Group votes by vote result
 const groupedVotes = computed(() => {
@@ -219,11 +429,21 @@ async function loadResults() {
   error.value = null
 
   try {
-    results.value = await fetchVoteResultsByProposal(
-      props.proposalId,
-      props.proposalTitle,
-      props.pipNumber
-    )
+    // First try to get results from pre-fetched data
+    const preFetchedResults = votesStore.getProposalVoteResults(props.proposalId)
+    
+    if (preFetchedResults) {
+      // Use pre-fetched data (instant, no network call)
+      results.value = preFetchedResults
+      loading.value = false
+    } else {
+      // Fallback to fetching if not in pre-fetched data (shouldn't happen normally)
+      results.value = await fetchVoteResultsByProposal(
+        props.proposalId,
+        props.proposalTitle,
+        props.pipNumber
+      )
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load vote results'
   } finally {
@@ -392,6 +612,160 @@ function scrollToWallet() {
   border-radius: var(--radius-md);
 }
 
+.final-results {
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.final-results-title {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.winner-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+}
+
+.winner-badge.winner-yes {
+  background-color: rgba(16, 185, 129, 0.15);
+  border: 2px solid #10b981;
+  color: #10b981;
+}
+
+.winner-badge.winner-no {
+  background-color: rgba(239, 68, 68, 0.15);
+  border: 2px solid #ef4444;
+  color: #ef4444;
+}
+
+.winner-badge.winner-tie {
+  background-color: rgba(156, 163, 175, 0.15);
+  border: 2px solid #9ca3af;
+  color: #9ca3af;
+}
+
+.winner-label {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.winner-margin {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.results-bar-container {
+  margin-bottom: var(--spacing-md);
+}
+
+.results-bar {
+  display: flex;
+  height: 80px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  background-color: var(--color-bg-primary);
+}
+
+.bar-segment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-width: 0;
+  transition: width 0.3s ease;
+}
+
+.bar-segment.bar-yes {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8) 0%, rgba(16, 185, 129, 0.6) 100%);
+  border-right: 2px solid var(--color-border);
+}
+
+.bar-segment.bar-no {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.8) 0%, rgba(239, 68, 68, 0.6) 100%);
+}
+
+.bar-label-top {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  margin-bottom: var(--spacing-xs);
+}
+
+.bar-label-bottom {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.results-details {
+  display: flex;
+  gap: var(--spacing-lg);
+  justify-content: space-around;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.result-detail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex: 1;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.result-detail-item.result-yes {
+  background-color: rgba(16, 185, 129, 0.05);
+}
+
+.result-detail-item.result-no {
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.result-detail-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.result-detail-value {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.result-detail-item.result-yes .result-detail-value {
+  color: #10b981;
+}
+
+.result-detail-item.result-no .result-detail-value {
+  color: #ef4444;
+}
+
+.result-detail-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
 .summary-item {
   display: flex;
   flex-direction: column;
@@ -408,6 +782,169 @@ function scrollToWallet() {
   font-size: var(--font-size-xl);
   color: var(--color-accent-teal);
   font-weight: 600;
+}
+
+.summary-value.status-passed {
+  color: #10b981;
+}
+
+.summary-value.status-rejected {
+  color: #ef4444;
+}
+
+.summary-value.status-active {
+  color: #3b82f6;
+}
+
+.summary-value.status-unknown {
+  color: var(--color-text-secondary);
+}
+
+/* Compact Results Styles for Active Voting */
+.compact-results {
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  border-left: 4px solid #3b82f6;
+}
+
+.compact-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.compact-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.voting-active-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid #3b82f6;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.voting-active-indicator {
+  width: 8px;
+  height: 8px;
+  background-color: #3b82f6;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.compact-results-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.compact-bar-container {
+  margin-bottom: var(--spacing-sm);
+}
+
+.compact-bar {
+  display: flex;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-primary);
+}
+
+.compact-bar-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-width: 0;
+  transition: width 0.3s ease;
+}
+
+.compact-bar-segment.compact-bar-yes {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.7) 0%, rgba(16, 185, 129, 0.5) 100%);
+  border-right: 1px solid var(--color-border);
+}
+
+.compact-bar-segment.compact-bar-no {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.7) 0%, rgba(239, 68, 68, 0.5) 100%);
+}
+
+.compact-bar-label {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.compact-stats {
+  display: flex;
+  gap: var(--spacing-lg);
+  justify-content: space-around;
+  padding: var(--spacing-sm);
+  background-color: var(--color-bg-primary);
+  border-radius: var(--radius-sm);
+}
+
+.compact-stat-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex: 1;
+}
+
+.compact-stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.compact-stat-value {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.compact-stat-item:first-child .compact-stat-value {
+  color: #10b981;
+}
+
+.compact-stat-item:last-child .compact-stat-value {
+  color: #ef4444;
+}
+
+.compact-stat-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.voting-ends-info {
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  padding: var(--spacing-xs);
+  font-style: italic;
 }
 
 .leaderboard-controls {

@@ -5,28 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Star Atlas Wallet Tracker</title>
     <script>
-      // Store the original pathname before redirecting
-      var originalPath = window.location.pathname;
-      var originalSearch = window.location.search;
-      var originalHash = window.location.hash;
+      // GitHub Pages SPA routing - simple redirect
+      var path = window.location.pathname;
+      var search = window.location.search;
+      var hash = window.location.hash;
       
-      // Store in sessionStorage so index.html can read it
-      sessionStorage.setItem('404-redirect-path', originalPath + originalSearch + originalHash);
+      // Extract base path (e.g., /SAWT/ from /SAWT/votes)
+      var pathSegments = path.split('/').filter(function(segment) { return segment; });
+      var basePath = pathSegments.length > 0 ? '/' + pathSegments[0] + '/' : '/';
       
-      // Detect base path
-      var pathParts = originalPath.split('/').filter(function(p) { return p; });
-      var basePath = '/';
-      if (pathParts.length > 0) {
-        // Assume first segment is the base path (e.g., /SAWT/)
-        basePath = '/' + pathParts[0] + '/';
+      // Extract route path (everything after base)
+      var routePath = path.substring(basePath.length - 1) || '/';
+      if (!routePath.startsWith('/')) {
+        routePath = '/' + routePath;
       }
+      // Remove index.html if present
+      routePath = routePath.replace(/\/index\.html$/, '') || '/';
       
-      // Redirect to index.html at the base path
+      // Store the target path in sessionStorage for the router to pick up
+      sessionStorage.setItem('ghp-redirect-path', routePath + search + hash);
+      
+      // Redirect to index.html
       window.location.replace(basePath + 'index.html');
     </script>
   </head>
   <body>
-    <!-- Redirecting... -->
+    <div>Redirecting...</div>
   </body>
 </html>
-

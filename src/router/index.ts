@@ -10,70 +10,11 @@ const getBasePath = () => {
   return '/'
 }
 
-// Build routes with conditional redirect
-const rootRedirect = (): string | { path: string; query?: Record<string, string>; hash?: string } => {
-  // Check if we have a stored 404 redirect path
-  if (typeof window !== 'undefined') {
-    const storedPath = sessionStorage.getItem('404-redirect-path')
-    if (storedPath) {
-      // Parse the stored path to extract path, query, and hash
-      const basePath = getBasePath()
-      
-      // Extract hash first (it comes last in URL)
-      const hashIndex = storedPath.indexOf('#')
-      const searchIndex = storedPath.indexOf('?')
-      
-      let path = storedPath
-      let query = ''
-      let hash = ''
-      
-      // Extract hash
-      if (hashIndex !== -1) {
-        hash = storedPath.slice(hashIndex)
-        path = storedPath.slice(0, hashIndex)
-      }
-      
-      // Extract query params
-      if (searchIndex !== -1 && (hashIndex === -1 || searchIndex < hashIndex)) {
-        query = path.slice(searchIndex + 1, hashIndex !== -1 ? hashIndex : undefined)
-        path = path.slice(0, searchIndex)
-      }
-      
-      // Strip base path if present
-      if (basePath !== '/' && path.startsWith(basePath)) {
-        path = path.slice(basePath.length)
-      }
-      
-      // Ensure path starts with /
-      if (!path.startsWith('/')) {
-        path = '/' + path
-      }
-      
-      // Only redirect if it's a valid route (not root)
-      if (path !== '/' && path !== basePath) {
-        // Return object with path, query, and hash to preserve them
-        const result: { path: string; query?: Record<string, string>; hash?: string } = { path }
-        if (query) {
-          // Parse query string into object
-          const params = new URLSearchParams(query)
-          result.query = Object.fromEntries(params) as Record<string, string>
-        }
-        if (hash) {
-          result.hash = hash
-        }
-        return result
-      }
-    }
-  }
-  return '/holdings'
-}
-
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: BaseLayout,
-    // Use function redirect to check for 404 restore
-    redirect: rootRedirect,
+    redirect: '/holdings',
     children: [
       {
         path: '/holdings',
@@ -131,26 +72,56 @@ const routes: RouteRecordRaw[] = [
 
 const basePath = getBasePath()
 
-// Clean up 404 redirect path from sessionStorage after routes are defined
-// The redirect function will handle the actual redirect
-if (typeof window !== 'undefined') {
-  const storedPath = sessionStorage.getItem('404-redirect-path')
-  if (storedPath) {
-    // We'll clear it after the router processes it
-    // Store it temporarily for the redirect function
-  }
-}
-
 const router = createRouter({
   history: createWebHistory(basePath),
   routes
 })
 
-// Clean up sessionStorage after router is ready
+// Navigation guard to handle index.html in URL
+router.beforeEach((to, from, next) => {
+  // If the path contains index.html, redirect to root (which will redirect to /holdings)
+  if (to.path.includes('index.html')) {
+    next('/')
+    return
+  }
+  next()
+})
+
+// Handle GitHub Pages routing issues
 if (typeof window !== 'undefined') {
   router.isReady().then(() => {
-    // Clear the 404 redirect path after router has processed it
-    sessionStorage.removeItem('404-redirect-path')
+    // Check for stored redirect path from 404.html
+    const storedPath = sessionStorage.getItem('ghp-redirect-path')
+    if (storedPath) {
+      // Parse the stored path
+      const hashIndex = storedPath.indexOf('#')
+      const searchIndex = storedPath.indexOf('?')
+      
+      let path = storedPath
+      let query: Record<string, string> = {}
+      let hash = ''
+      
+      // Extract hash
+      if (hashIndex !== -1) {
+        hash = storedPath.slice(hashIndex)
+        path = storedPath.slice(0, hashIndex)
+      }
+      
+      // Extract query params
+      if (searchIndex !== -1 && (hashIndex === -1 || searchIndex < hashIndex)) {
+        const queryString = path.slice(searchIndex + 1)
+        path = path.slice(0, searchIndex)
+        query = Object.fromEntries(new URLSearchParams(queryString))
+      }
+      
+      // Clean up immediately
+      sessionStorage.removeItem('ghp-redirect-path')
+      
+      // Navigate to the stored path
+      if (path && path !== '/' && path !== basePath) {
+        router.replace({ path, query, hash })
+      }
+    }
   })
 }
 

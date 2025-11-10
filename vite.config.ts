@@ -29,6 +29,7 @@ export default defineConfig({
         target: 'https://graph.roguedatahub.xyz',
         changeOrigin: true,
         secure: true,
+        // Vite will automatically append /graphql to the target
       },
     },
   },

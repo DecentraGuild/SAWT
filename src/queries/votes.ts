@@ -121,7 +121,7 @@ export const VOTES_BY_PROPOSAL_ID_SIMPLE_QUERY = gql`
  */
 export const ALL_PIP_QUERY = gql`
   query AllPIP {
-    allStarAtlasProposals(condition: {}, orderBy: PIP_NUMBER_ASC) {
+    allStarAtlasProposals(condition: {}, orderBy: PIP_NUMBER_DESC) {
       nodes {
         status
         votingStartsAt

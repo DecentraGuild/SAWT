@@ -1,6 +1,7 @@
 import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client'
 
-// Use proxy in development to avoid CORS issues, Cloudflare proxy in production
+// In development: use Vite proxy to /graphql (proxies to graph.roguedatahub.xyz/graphql)
+// In production: use Cloudflare proxy (handles CORS for production domain)
 const graphqlUrl = import.meta.env.DEV 
   ? '/graphql' 
   : 'https://graphql-proxy.lorddo3066.workers.dev'

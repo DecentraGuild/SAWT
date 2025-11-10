@@ -28,7 +28,7 @@
           <div v-if="value" class="wallet-vote-indicator">
             <Icon 
               :icon="getVoteIcon(value.voteResult)" 
-              :class="['vote-icon', `vote-icon-${value.voteResult.toLowerCase()}`]"
+              :class="['vote-icon', getVoteIconClass(value.voteResult)]"
             />
             <span class="wallet-vote-pvp">{{ formatVotingPower(value.votingPower) }} PVP</span>
           </div>
@@ -443,9 +443,30 @@ function getVoteIcon(voteResult: string): string {
     return 'mdi:thumb-up'
   } else if (result === 'no') {
     return 'mdi:thumb-down'
-  } else {
-    // For abstain or other vote types - use outline thumb (will be styled yellow/sideways)
+  } else if (voteResult && voteResult.includes(',')) {
+    // Multiple choices - use green outline thumbs up
     return 'mdi:thumb-up-outline'
+  } else {
+    // For abstain or other vote types - use outline thumb (will be styled yellow)
+    return 'mdi:thumb-up-outline'
+  }
+}
+
+// Get CSS class for vote icon
+function getVoteIconClass(voteResult: string): string {
+  if (!voteResult) return 'vote-icon-abstain'
+  
+  const result = voteResult.toLowerCase()
+  if (result === 'yes') {
+    return 'vote-icon-yes'
+  } else if (result === 'no') {
+    return 'vote-icon-no'
+  } else if (voteResult.includes(',')) {
+    // Multiple choices - use green outline
+    return 'vote-icon-multiple'
+  } else {
+    // Abstain or other vote types
+    return 'vote-icon-abstain'
   }
 }
 </script>
@@ -619,13 +640,17 @@ function getVoteIcon(voteResult: string): string {
   color: #ef4444;
 }
 
+.vote-icon-multiple {
+  color: #10b981;
+}
+
 .vote-icon-abstain,
 .vote-icon- {
   color: #f59e0b;
 }
 
-/* Handle other vote types that aren't yes/no */
-.vote-icon:not(.vote-icon-yes):not(.vote-icon-no) {
+/* Handle other vote types that aren't yes/no/multiple */
+.vote-icon:not(.vote-icon-yes):not(.vote-icon-no):not(.vote-icon-multiple) {
   color: #f59e0b;
 }
 

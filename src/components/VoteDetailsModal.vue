@@ -546,6 +546,7 @@ function scrollToWallet() {
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  overflow-x: hidden;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 
@@ -553,7 +554,7 @@ function scrollToWallet() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -599,30 +600,31 @@ function scrollToWallet() {
 }
 
 .vote-results {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-sm);
 }
 
 .results-summary {
   display: flex;
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
-  padding: var(--spacing-md);
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
 .final-results {
-  margin-bottom: var(--spacing-xl);
-  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+  padding: var(--spacing-sm);
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
 .final-results-title {
-  margin: 0 0 var(--spacing-md) 0;
-  font-size: var(--font-size-lg);
+  margin: 0 0 var(--spacing-xs) 0;
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   font-weight: 600;
 }
@@ -632,8 +634,8 @@ function scrollToWallet() {
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-xs);
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
   border-radius: var(--radius-md);
   font-weight: 600;
 }
@@ -657,7 +659,7 @@ function scrollToWallet() {
 }
 
 .winner-label {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-base);
   font-weight: 700;
 }
 
@@ -668,12 +670,12 @@ function scrollToWallet() {
 }
 
 .results-bar-container {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
 }
 
 .results-bar {
   display: flex;
-  height: 80px;
+  height: 50px;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 2px solid var(--color-border);
@@ -700,15 +702,15 @@ function scrollToWallet() {
 }
 
 .bar-label-top {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-sm);
   font-weight: 700;
   color: white;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: 2px;
 }
 
 .bar-label-bottom {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: white;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -716,9 +718,9 @@ function scrollToWallet() {
 
 .results-details {
   display: flex;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-sm);
   justify-content: space-around;
-  padding-top: var(--spacing-md);
+  padding-top: var(--spacing-xs);
   border-top: 1px solid var(--color-border);
 }
 
@@ -728,7 +730,7 @@ function scrollToWallet() {
   align-items: center;
   gap: var(--spacing-xs);
   flex: 1;
-  padding: var(--spacing-sm);
+  padding: var(--spacing-xs);
   border-radius: var(--radius-sm);
 }
 
@@ -749,7 +751,7 @@ function scrollToWallet() {
 }
 
 .result-detail-value {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
   font-weight: 700;
 }
 
@@ -770,6 +772,8 @@ function scrollToWallet() {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+  flex: 1;
+  text-align: center;
 }
 
 .summary-label {
@@ -802,8 +806,8 @@ function scrollToWallet() {
 
 /* Compact Results Styles for Active Voting */
 .compact-results {
-  margin-bottom: var(--spacing-xl);
-  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -814,12 +818,12 @@ function scrollToWallet() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
 }
 
 .compact-title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   font-weight: 600;
 }
@@ -857,11 +861,11 @@ function scrollToWallet() {
 .compact-results-content {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-xs);
 }
 
 .compact-bar-container {
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
 }
 
 .compact-bar {
@@ -900,9 +904,9 @@ function scrollToWallet() {
 
 .compact-stats {
   display: flex;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-sm);
   justify-content: space-around;
-  padding: var(--spacing-sm);
+  padding: var(--spacing-xs);
   background-color: var(--color-bg-primary);
   border-radius: var(--radius-sm);
 }
@@ -951,7 +955,7 @@ function scrollToWallet() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
 }
 
 .leaderboard-controls h3 {
@@ -1018,7 +1022,7 @@ function scrollToWallet() {
 }
 
 .leaderboard h3 {
-  margin: 0 0 var(--spacing-lg) 0;
+  margin: 0 0 var(--spacing-sm) 0;
   font-size: var(--font-size-lg);
   color: var(--color-text-primary);
 }
@@ -1026,20 +1030,20 @@ function scrollToWallet() {
 .leaderboard-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
-  max-height: 60vh;
-  overflow-y: auto;
+  gap: var(--spacing-xs);
 }
 
 .leaderboard-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   transition: all var(--transition-base);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .leaderboard-item:hover {
@@ -1084,13 +1088,13 @@ function scrollToWallet() {
 .grouped-leaderboard {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-md);
 }
 
 .vote-group {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
 }
 
 .group-header {
@@ -1098,7 +1102,7 @@ function scrollToWallet() {
   font-size: var(--font-size-lg);
   color: var(--color-text-primary);
   font-weight: 600;
-  padding-bottom: var(--spacing-sm);
+  padding-bottom: var(--spacing-xs);
   border-bottom: 2px solid var(--color-border);
 }
 
@@ -1109,46 +1113,60 @@ function scrollToWallet() {
 }
 
 .rank {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
   font-weight: 700;
   color: var(--color-text-secondary);
-  min-width: 50px;
+  min-width: 40px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .vote-info {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .vote-wallet-container {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+  white-space: nowrap;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .vote-wallet {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-primary);
   font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 
 .vote-meta {
   display: flex;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
   align-items: center;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .vote-result {
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
 }
 
 .result-yes {
@@ -1162,11 +1180,12 @@ function scrollToWallet() {
 }
 
 .vote-power {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-accent-teal);
-  min-width: 120px;
+  min-width: 100px;
   text-align: right;
+  flex-shrink: 0;
 }
 </style>
 

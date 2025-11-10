@@ -67,3 +67,35 @@ export function formatWallet(wallet: string): string {
   return wallet
 }
 
+/**
+ * Format a number with currency symbol
+ */
+export function formatCurrency(value: number, currency: string = 'ATLAS'): string {
+  return `${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(value)} ${currency}`
+}
+
+/**
+ * Format a number as USD currency
+ */
+export function formatUSD(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4
+  }).format(value)
+}
+
+/**
+ * Format a number with specified decimal places
+ */
+export function formatNumber(value: number, minDecimals: number = 0, maxDecimals: number = 2): string {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals
+  }).format(value)
+}
+

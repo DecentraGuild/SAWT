@@ -42,6 +42,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatNumber, formatCurrency, formatUSD } from '../utils/formatters'
 
 export interface TableColumn {
   key: string
@@ -80,28 +81,17 @@ function formatCellValue(value: any, format?: string): string {
   
   switch (format) {
     case 'number':
-      return new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2
-      }).format(Number(value))
+      return formatNumber(Number(value), 0, 2)
     
     case 'currency':
-      return new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(Number(value))
+      return formatNumber(Number(value), 2, 2)
     
     case 'currency-usd':
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 4,
-        maximumFractionDigits: 4
-      }).format(Number(value))
+      return formatUSD(Number(value))
     
     case 'range':
       if (Array.isArray(value) && value.length === 2) {
-        return `${formatNumber(value[0])} - ${formatNumber(value[1])}`
+        return `${formatNumber(value[0], 6, 6)} - ${formatNumber(value[1], 6, 6)}`
       }
       return String(value)
     
@@ -110,27 +100,8 @@ function formatCellValue(value: any, format?: string): string {
   }
 }
 
-function formatNumber(val: number): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 6,
-    maximumFractionDigits: 6
-  }).format(val)
-}
-
 function formatValue(val: number, currency: string = 'ATLAS'): string {
-  return `${new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  }).format(val)} ${currency}`
-}
-
-function formatUSD(val: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4
-  }).format(val)
+  return formatCurrency(val, currency)
 }
 </script>
 

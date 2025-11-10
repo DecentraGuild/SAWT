@@ -3,13 +3,13 @@
     <h1>Votes</h1>
 
     <!-- All PIPs Leaderboard View (available without wallet) -->
-    <div v-if="allPIPsLoading" class="loading-message">
+    <BaseMessage v-if="allPIPsLoading" type="loading">
       Loading all proposals...
-    </div>
+    </BaseMessage>
 
-    <div v-if="allPIPsError" class="error-message">
+    <BaseMessage v-if="allPIPsError" type="error">
       Error loading proposals: {{ allPIPsError }}
-    </div>
+    </BaseMessage>
 
     <div v-if="!allPIPsLoading && allPIPs.length > 0" class="all-pips-section">
       <h2>All Proposals</h2>
@@ -35,9 +35,7 @@
           <span v-else class="wallet-vote-empty">-</span>
         </template>
         <template #cell-status="{ value, row }">
-          <span class="status-badge" :class="getStatusClass(value)">
-            {{ value }}
-          </span>
+          <BaseStatusBadge :status="value" />
         </template>
         <template #cell-voteResults="{ value, row }">
           <div class="vote-results-cell">
@@ -84,13 +82,13 @@
         </button>
       </div>
       
-      <div v-if="error" class="error-message">
+      <BaseMessage v-if="error" type="error">
         {{ error }}
-      </div>
+      </BaseMessage>
 
-      <div v-if="loading" class="loading-message">
+      <BaseMessage v-if="loading" type="loading">
         Fetching votes...
-      </div>
+      </BaseMessage>
 
       <div v-if="!loading && votes.length > 0" class="votes-content">
         <div class="votes-summary">
@@ -119,14 +117,14 @@
         </div>
       </div>
 
-      <div v-if="!loading && votes.length === 0 && walletStore.address && lastFetchedWallet" class="empty-message">
+      <BaseMessage v-if="!loading && votes.length === 0 && walletStore.address && lastFetchedWallet" type="empty">
         No votes found for this wallet address.
-      </div>
+      </BaseMessage>
     </div>
 
-    <div v-if="!walletStore.address" class="info-message">
+    <BaseMessage v-if="!walletStore.address" type="info">
       Enter a wallet address in the top navigation bar to view your personal voting history.
-    </div>
+    </BaseMessage>
 
     <VoteDetailsModal
       :is-open="showDetailsModal"
@@ -145,6 +143,8 @@ import { useVotesStore } from '../stores/votes'
 import { useWalletStore } from '../stores/wallet'
 import DataTable, { type TableColumn } from '../components/DataTable.vue'
 import VoteDetailsModal from '../components/VoteDetailsModal.vue'
+import BaseStatusBadge from '../components/BaseStatusBadge.vue'
+import BaseMessage from '../components/BaseMessage.vue'
 import { formatVoteResult, formatDate, formatVotingPower } from '../utils/formatters'
 
 const votesStore = useVotesStore()
@@ -376,13 +376,6 @@ const proposalsTableData = computed(() => {
   })
 })
 
-function getStatusClass(status: string): string {
-  const statusLower = status.toLowerCase()
-  if (statusLower === 'passed') return 'status-passed'
-  if (statusLower === 'failed') return 'status-failed'
-  if (statusLower === 'active') return 'status-active'
-  return 'status-unknown'
-}
 
 // Check if wallet has voted on a proposal
 function hasWalletVoted(proposalId: string): boolean {
@@ -464,32 +457,6 @@ function getVoteIcon(voteResult: string): string {
   margin: 0 auto;
 }
 
-.info-message {
-  padding: var(--spacing-md);
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-md);
-  text-align: center;
-}
-
-.error-message {
-  padding: var(--spacing-md);
-  background-color: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: var(--radius-md);
-  color: #ef4444;
-  margin-bottom: var(--spacing-md);
-}
-
-.loading-message {
-  padding: var(--spacing-lg);
-  text-align: center;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-lg);
-}
-
 .votes-content {
   margin-top: var(--spacing-lg);
 }
@@ -522,13 +489,6 @@ function getVoteIcon(voteResult: string): string {
   font-weight: 600;
 }
 
-.empty-message {
-  padding: var(--spacing-lg);
-  text-align: center;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-lg);
-}
-
 .hash-cell {
   font-family: monospace;
   font-size: var(--font-size-sm);
@@ -549,40 +509,6 @@ function getVoteIcon(voteResult: string): string {
   border-top: 2px solid var(--color-border);
 }
 
-/* Status badge styles */
-.status-badge {
-  display: inline-block;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.status-badge.status-passed {
-  background-color: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.status-badge.status-failed {
-  background-color: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.status-badge.status-active {
-  background-color: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.status-badge.status-unknown {
-  background-color: rgba(156, 163, 175, 0.15);
-  color: #9ca3af;
-  border: 1px solid rgba(156, 163, 175, 0.3);
-}
 
 /* Vote results cell styles */
 .vote-results-cell {

@@ -6,10 +6,10 @@
     </div>
     <div class="summary-card-content">
       <div class="summary-card-value" :class="valueClass">
-        {{ formatValue(value) }} {{ currency }}
+        {{ formatValue(value) }}
       </div>
       <div class="summary-card-usd">
-        {{ formatUSD(usdValue) }} USD
+        {{ formatUSD(usdValue) }}
       </div>
     </div>
   </div>
@@ -17,6 +17,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatCurrency, formatUSD } from '../utils/formatters'
 
 interface Props {
   title: string
@@ -37,19 +38,7 @@ const cardClass = computed(() => `summary-card--${props.type}`)
 const valueClass = computed(() => `summary-card-value--${props.type}`)
 
 function formatValue(val: number): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  }).format(val)
-}
-
-function formatUSD(val: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4
-  }).format(val)
+  return formatCurrency(val, props.currency)
 }
 </script>
 

@@ -78,7 +78,7 @@ const router = createRouter({
 })
 
 // Navigation guard to handle index.html in URL
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   // If the path contains index.html, redirect to root (which will redirect to /holdings)
   if (to.path.includes('index.html')) {
     next('/')

@@ -75,34 +75,49 @@ const router = createRouter({
   routes
 })
 
-// Handle GitHub Pages 404.html redirect format
-// When GitHub Pages serves 404.html, it redirects to /?/path
-// We need to convert this back to the proper path
+// Handle GitHub Pages 404.html redirect
+// When GitHub Pages serves 404.html, it stores the original path in sessionStorage
+// and redirects to index.html. We need to restore the original path.
 if (typeof window !== 'undefined') {
-  const search = window.location.search
-  if (search && search.startsWith('?/')) {
-    // Extract the path from the query string (format: ?/path)
-    let path = search.slice(2) // Remove '?/'
+  const storedPath = sessionStorage.getItem('404-redirect-path')
+  if (storedPath) {
+    // Clear the stored path
+    sessionStorage.removeItem('404-redirect-path')
     
-    // Handle query parameters and hash
-    const hashIndex = path.indexOf('#')
+    // Extract path, search, and hash
+    const hashIndex = storedPath.indexOf('#')
+    const searchIndex = storedPath.indexOf('?')
+    
+    let path = storedPath
+    let search = ''
     let hash = ''
+    
+    // Extract hash first (it comes last)
     if (hashIndex !== -1) {
-      hash = path.slice(hashIndex)
-      path = path.slice(0, hashIndex)
+      hash = storedPath.slice(hashIndex)
+      path = storedPath.slice(0, hashIndex)
     }
     
-    // Handle query parameters (format: ?/path&param=value)
-    const queryIndex = path.indexOf('&')
-    if (queryIndex !== -1) {
-      path = path.slice(0, queryIndex)
+    // Extract search params
+    if (searchIndex !== -1 && (hashIndex === -1 || searchIndex < hashIndex)) {
+      search = path.slice(searchIndex)
+      path = path.slice(0, searchIndex)
     }
     
-    // Replace ~and~ with & (used by 404.html to escape &)
-    path = path.replace(/~and~/g, '&')
+    // Get the base path and strip it from the stored path
+    const basePath = getBasePath()
+    if (basePath !== '/' && path.startsWith(basePath)) {
+      // Remove the base path from the beginning
+      path = path.slice(basePath.length - 1) // -1 to keep the leading /
+    }
     
-    // Navigate to the correct path
-    router.replace(path + hash)
+    // Ensure path starts with /
+    if (!path.startsWith('/')) {
+      path = '/' + path
+    }
+    
+    // Navigate to the correct path with search and hash
+    router.replace(path + search + hash)
   }
 }
 

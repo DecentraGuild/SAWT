@@ -24,6 +24,16 @@
         :get-row-class="getProposalRowClass"
         @row-click="handleProposalClick"
       >
+        <template #cell-walletVote="{ value, row }">
+          <div v-if="value" class="wallet-vote-indicator">
+            <Icon 
+              :icon="getVoteIcon(value.voteResult)" 
+              :class="['vote-icon', `vote-icon-${value.voteResult.toLowerCase()}`]"
+            />
+            <span class="wallet-vote-pvp">{{ formatVotingPower(value.votingPower) }} PVP</span>
+          </div>
+          <span v-else class="wallet-vote-empty">-</span>
+        </template>
         <template #cell-status="{ value, row }">
           <span class="status-badge" :class="getStatusClass(value)">
             {{ value }}
@@ -61,7 +71,18 @@
 
     <!-- Wallet-specific votes section -->
     <div v-if="walletStore.address" class="wallet-votes-section">
-      <h2>Your Votes</h2>
+      <div class="wallet-votes-header">
+        <h2>Your Votes</h2>
+        <button 
+          v-if="!loading && votes.length > 0"
+          class="toggle-button"
+          @click="showWalletVotes = !showWalletVotes"
+          :aria-expanded="showWalletVotes"
+        >
+          <Icon :icon="showWalletVotes ? 'mdi:chevron-up' : 'mdi:chevron-down'" />
+          <span>{{ showWalletVotes ? 'Hide' : 'Show' }} Full Vote History</span>
+        </button>
+      </div>
       
       <div v-if="error" class="error-message">
         {{ error }}
@@ -87,13 +108,15 @@
           </div>
         </div>
 
-        <DataTable
-          title="Voting History"
-          :columns="tableColumns"
-          :data="tableData"
-          :show-summary="false"
-          @row-click="handleRowClick"
-        />
+        <div v-show="showWalletVotes">
+          <DataTable
+            title="Voting History"
+            :columns="tableColumns"
+            :data="tableData"
+            :show-summary="false"
+            @row-click="handleRowClick"
+          />
+        </div>
       </div>
 
       <div v-if="!loading && votes.length === 0 && walletStore.address && lastFetchedWallet" class="empty-message">
@@ -117,6 +140,7 @@
 
 <script setup lang="ts">
 import { computed, watch, ref, onMounted } from 'vue'
+import { Icon } from '@iconify/vue'
 import { useVotesStore } from '../stores/votes'
 import { useWalletStore } from '../stores/wallet'
 import DataTable, { type TableColumn } from '../components/DataTable.vue'
@@ -173,6 +197,7 @@ const showDetailsModal = ref(false)
 const selectedProposalId = ref<string | null>(null)
 const selectedProposalTitle = ref('')
 const selectedPipNumber = ref('')
+const showWalletVotes = ref(false)
 
 // Watch for wallet changes and automatically fetch votes
 watch(() => walletStore.address, async (newAddress) => {
@@ -238,15 +263,51 @@ function isVotingActive(votingEndsAt: string | null): boolean {
   return endDate > now
 }
 
-const proposalsTableColumns: TableColumn[] = [
-  { key: 'pipNumber', label: 'PIP', format: 'text' },
-  { key: 'title', label: 'Proposal Title', format: 'text' },
-  { key: 'status', label: 'Status', format: 'text' },
-  { key: 'voteResults', label: 'Results', format: 'text' },
-  { key: 'totalVotes', label: 'Total Votes', format: 'number' },
-  { key: 'totalVotingPower', label: 'Total Voting Power (PVP)', format: 'number' },
-  { key: 'votingEndsAt', label: 'Voting Ends', format: 'text' }
-]
+const proposalsTableColumns = computed<TableColumn[]>(() => {
+  const baseColumns: TableColumn[] = [
+    { key: 'pipNumber', label: 'PIP', format: 'text' },
+    { key: 'title', label: 'Proposal Title', format: 'text' },
+  ]
+  
+  // Add wallet vote column only when wallet is fetched
+  if (walletStore.address && lastFetchedWallet.value) {
+    baseColumns.push({ key: 'walletVote', label: 'Your Vote', format: 'text' })
+  }
+  
+  baseColumns.push(
+    { key: 'status', label: 'Status', format: 'text' },
+    { key: 'voteResults', label: 'Results', format: 'text' },
+    { key: 'totalVotes', label: 'Total Votes', format: 'number' },
+    { key: 'totalVotingPower', label: 'Total Voting Power (PVP)', format: 'number' },
+    { key: 'votingEndsAt', label: 'Voting Ends', format: 'text' }
+  )
+  
+  return baseColumns
+})
+
+// Get wallet's vote for a specific proposal (last vote only)
+function getWalletVoteForProposal(proposalId: string): { voteResult: string; votingPower: number } | null {
+  if (!walletStore.address) return null
+  
+  const walletAddress = walletStore.address.toLowerCase()
+  
+  // Find the proposal in allPIPs
+  const proposal = allPIPs.value.find(p => p.id === proposalId)
+  if (!proposal) return null
+  
+  // Get latest vote for this wallet from the proposal's votes
+  const walletVotes = proposal.votes
+    .filter(vote => vote.walletPublicKey.toLowerCase() === walletAddress)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  
+  if (walletVotes.length === 0) return null
+  
+  const latestVote = walletVotes[0]
+  return {
+    voteResult: latestVote.voteResult || '',
+    votingPower: parseFloat(latestVote.votingPower || '0')
+  }
+}
 
 const proposalsTableData = computed(() => {
   return allPIPs.value.map(proposal => {
@@ -289,6 +350,11 @@ const proposalsTableData = computed(() => {
     const isActive = isVotingActive(proposal.votingEndsAt)
     const formattedStatus = formatStatus(proposal.status || '', proposal.votingEndsAt)
 
+    // Get wallet vote for this proposal
+    const walletVote = walletStore.address && lastFetchedWallet.value 
+      ? getWalletVoteForProposal(proposal.id)
+      : null
+
     return {
       pipNumber: proposal.pipNumber,
       title: proposal.title,
@@ -304,7 +370,8 @@ const proposalsTableData = computed(() => {
       totalVotingPower,
       votingEndsAt: proposal.votingEndsAt ? formatDate(proposal.votingEndsAt) : 'N/A',
       proposalId: proposal.id,
-      isActive
+      isActive,
+      walletVote // Add wallet vote data
     }
   })
 })
@@ -374,6 +441,19 @@ function closeDetailsModal() {
   selectedProposalId.value = null
   selectedProposalTitle.value = ''
   selectedPipNumber.value = ''
+}
+
+// Get icon for vote result
+function getVoteIcon(voteResult: string): string {
+  const result = (voteResult || '').toLowerCase()
+  if (result === 'yes') {
+    return 'mdi:thumb-up'
+  } else if (result === 'no') {
+    return 'mdi:thumb-down'
+  } else {
+    // For abstain or other vote types - use outline thumb (will be styled yellow/sideways)
+    return 'mdi:thumb-up-outline'
+  }
 }
 </script>
 
@@ -556,6 +636,82 @@ function closeDetailsModal() {
   font-style: italic;
   font-size: var(--font-size-sm);
   text-align: center;
+}
+
+/* Wallet votes section header */
+.wallet-votes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.toggle-button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-base);
+}
+
+.toggle-button:hover {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-teal);
+}
+
+.toggle-button :deep(svg) {
+  width: 18px;
+  height: 18px;
+}
+
+/* Wallet vote indicator */
+.wallet-vote-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs);
+}
+
+.vote-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.vote-icon-yes {
+  color: #10b981;
+}
+
+.vote-icon-no {
+  color: #ef4444;
+}
+
+.vote-icon-abstain,
+.vote-icon- {
+  color: #f59e0b;
+}
+
+/* Handle other vote types that aren't yes/no */
+.vote-icon:not(.vote-icon-yes):not(.vote-icon-no) {
+  color: #f59e0b;
+}
+
+.wallet-vote-pvp {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.wallet-vote-empty {
+  color: var(--color-text-tertiary);
+  font-style: italic;
 }
 
 </style>

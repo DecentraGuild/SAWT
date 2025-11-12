@@ -13,6 +13,7 @@ export const useWalletStore = defineStore('wallet', () => {
   const startDate = ref<string>('')
   const endDate = ref<string>('')
   const transactions = ref<any[]>([])
+  const refreshTrigger = ref<number>(0) // Counter to force refreshes
 
   function setWalletAddress(addr: string) {
     address.value = addr
@@ -27,14 +28,20 @@ export const useWalletStore = defineStore('wallet', () => {
     transactions.value = data
   }
 
+  function triggerRefresh() {
+    refreshTrigger.value++
+  }
+
   return {
     address,
     startDate,
     endDate,
     transactions,
+    refreshTrigger,
     setWalletAddress,
     setDateRange,
-    setTransactions
+    setTransactions,
+    triggerRefresh
   }
 })
 

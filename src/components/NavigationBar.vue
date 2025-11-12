@@ -34,6 +34,12 @@
           />
         </div>
       </div>
+      <DateRangePicker
+        :start-date="startDate"
+        :end-date="endDate"
+        @update:start-date="startDate = $event"
+        @update:end-date="endDate = $event"
+      />
       <button 
         class="update-wallet-button" 
         @click="refreshData"
@@ -41,12 +47,6 @@
       >
         Refresh
       </button>
-      <DateRangePicker
-        :start-date="startDate"
-        :end-date="endDate"
-        @update:start-date="startDate = $event"
-        @update:end-date="endDate = $event"
-      />
     </div>
   </div>
 </template>
@@ -85,6 +85,8 @@ function refreshData() {
   if (wallet) {
     walletStore.setWalletAddress(wallet)
     walletStore.setDateRange(startDate.value, endDate.value)
+    // Trigger refresh to force refetch even if wallet address hasn't changed
+    walletStore.triggerRefresh()
   }
 }
 </script>

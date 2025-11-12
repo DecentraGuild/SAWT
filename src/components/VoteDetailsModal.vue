@@ -47,14 +47,14 @@
                   class="compact-bar-segment compact-bar-yes" 
                   :style="{ width: `${voteBreakdown.yes.percentage}%` }"
                 >
-                  <div class="compact-bar-label">{{ voteBreakdown.yes.percentage.toFixed(1) }}%</div>
+                  <div class="compact-bar-label">{{ formatNumberOptimized(voteBreakdown.yes.percentage) }}%</div>
                 </div>
                 <div 
                   v-if="voteBreakdown.no.pvp > 0"
                   class="compact-bar-segment compact-bar-no" 
                   :style="{ width: `${voteBreakdown.no.percentage}%` }"
                 >
-                  <div class="compact-bar-label">{{ voteBreakdown.no.percentage.toFixed(1) }}%</div>
+                  <div class="compact-bar-label">{{ formatNumberOptimized(voteBreakdown.no.percentage) }}%</div>
                 </div>
               </div>
             </div>
@@ -91,7 +91,7 @@
                 class="bar-segment bar-yes" 
                 :style="{ width: `${voteBreakdown.yes.percentage}%` }"
               >
-                <div class="bar-label-top">{{ voteBreakdown.yes.percentage.toFixed(1) }}%</div>
+                <div class="bar-label-top">{{ formatNumberOptimized(voteBreakdown.yes.percentage) }}%</div>
                 <div class="bar-label-bottom">{{ formatVotingPower(voteBreakdown.yes.pvp) }} PVP</div>
               </div>
               <div 
@@ -99,7 +99,7 @@
                 class="bar-segment bar-no" 
                 :style="{ width: `${voteBreakdown.no.percentage}%` }"
               >
-                <div class="bar-label-top">{{ voteBreakdown.no.percentage.toFixed(1) }}%</div>
+                <div class="bar-label-top">{{ formatNumberOptimized(voteBreakdown.no.percentage) }}%</div>
                 <div class="bar-label-bottom">{{ formatVotingPower(voteBreakdown.no.pvp) }} PVP</div>
               </div>
             </div>
@@ -227,7 +227,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
 import { fetchVoteResultsByProposal, type ProposalVoteResults } from '../services/voteResultsService'
-import { formatVotingPower, formatVoteResult, formatVoteResultFull, formatWallet, formatDate } from '../utils/formatters'
+import { formatVotingPower, formatVoteResult, formatVoteResultFull, formatWallet, formatDate, formatNumberOptimized } from '../utils/formatters'
 import { useWalletStore } from '../stores/wallet'
 import { useVotesStore } from '../stores/votes'
 import type { VoteNode } from '../services/votesService'

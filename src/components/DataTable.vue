@@ -20,7 +20,7 @@
         >
           <td v-for="column in columns" :key="column.key" :class="column.class">
             <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]">
-              {{ formatCellValue(row[column.key], column.format) }}
+              {{ formatCellValue(row[column.key], column.format, column) }}
             </slot>
           </td>
         </tr>
@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatNumber, formatCurrency, formatUSD } from '../utils/formatters'
+import { formatNumber, formatCurrency, formatUSD, formatNumberOptimized } from '../utils/formatters'
 
 export interface TableColumn {
   key: string
@@ -76,7 +76,7 @@ defineEmits<{
   'row-click': [row: Record<string, any>]
 }>()
 
-function formatCellValue(value: any, format?: string): string {
+function formatCellValue(value: any, format?: string, column?: TableColumn): string {
   if (value === null || value === undefined) return '-'
   
   switch (format) {
@@ -84,6 +84,10 @@ function formatCellValue(value: any, format?: string): string {
       return formatNumber(Number(value), 0, 2)
     
     case 'currency':
+      // If column key is totalAtlas, show with ATLAS suffix
+      if (column?.key === 'totalAtlas') {
+        return formatCurrency(Number(value), 'ATLAS')
+      }
       return formatNumber(Number(value), 2, 2)
     
     case 'currency-usd':
@@ -91,7 +95,7 @@ function formatCellValue(value: any, format?: string): string {
     
     case 'range':
       if (Array.isArray(value) && value.length === 2) {
-        return `${formatNumber(value[0], 6, 6)} - ${formatNumber(value[1], 6, 6)}`
+        return `${formatNumberOptimized(value[0])} - ${formatNumberOptimized(value[1])}`
       }
       return String(value)
     

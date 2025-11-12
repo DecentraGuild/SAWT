@@ -47,7 +47,7 @@
                   :style="{ width: `${row.yesPercentage}%` }"
                   :title="`Yes: ${formatVotingPower(row.yesPvp)} PVP (${row.yesCount} votes)`"
                 >
-                  <span v-if="row.yesPercentage > 10" class="bar-percentage">{{ row.yesPercentage.toFixed(0) }}%</span>
+                  <span v-if="row.yesPercentage > 10" class="bar-percentage">{{ formatNumberOptimized(row.yesPercentage) }}%</span>
                 </div>
                 <div 
                   v-if="row.noPvp > 0"
@@ -55,7 +55,7 @@
                   :style="{ width: `${row.noPercentage}%` }"
                   :title="`No: ${formatVotingPower(row.noPvp)} PVP (${row.noCount} votes)`"
                 >
-                  <span v-if="row.noPercentage > 10" class="bar-percentage">{{ row.noPercentage.toFixed(0) }}%</span>
+                  <span v-if="row.noPercentage > 10" class="bar-percentage">{{ formatNumberOptimized(row.noPercentage) }}%</span>
                 </div>
               </div>
             </div>
@@ -145,7 +145,7 @@ import DataTable, { type TableColumn } from '../components/DataTable.vue'
 import VoteDetailsModal from '../components/VoteDetailsModal.vue'
 import BaseStatusBadge from '../components/BaseStatusBadge.vue'
 import BaseMessage from '../components/BaseMessage.vue'
-import { formatVoteResult, formatDate, formatVotingPower } from '../utils/formatters'
+import { formatVoteResult, formatDate, formatVotingPower, formatNumberOptimized } from '../utils/formatters'
 
 const votesStore = useVotesStore()
 const walletStore = useWalletStore()

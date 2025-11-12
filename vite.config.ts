@@ -31,6 +31,26 @@ export default defineConfig({
         secure: true,
         // Vite will automatically append /graphql to the target
       },
+      // Optional proxies for Star Atlas APIs (uncomment if CORS issues occur)
+      '/api/galaxy': {
+        target: 'https://galaxy.staratlas.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/galaxy/, ''),
+      },
+      '/api/roguedatahub': {
+        target: 'https://api.roguedatahub.xyz',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/roguedatahub/, ''),
+      },
+      // CoinGecko API (usually has CORS enabled, but proxy available if needed)
+      '/api/coingecko': {
+        target: 'https://api.coingecko.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/coingecko/, '/api/v3'),
+      },
     },
   },
 })

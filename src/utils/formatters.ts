@@ -52,13 +52,6 @@ export function formatDate(dateString: string): string {
   })
 }
 
-export function formatVotingPower(power: number): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(power)
-}
-
 export function formatWallet(wallet: string): string {
   if (!wallet) return 'Unknown'
   if (wallet.length > 12) {
@@ -68,34 +61,70 @@ export function formatWallet(wallet: string): string {
 }
 
 /**
- * Format a number with currency symbol
+ * Format a number with optimized decimal places based on value range:
+ * - 0-0.9999 = 4 digits
+ * - 1-10 = 3 digits
+ * - 10-100 = 2 digits
+ * - 100-1000 = 1 digit
+ * - 1000+ = no digits
  */
-export function formatCurrency(value: number, currency: string = 'ATLAS'): string {
-  return `${new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  }).format(value)} ${currency}`
-}
-
-/**
- * Format a number as USD currency
- */
-export function formatUSD(value: number): string {
+export function formatNumberOptimized(value: number): string {
+  const absValue = Math.abs(value)
+  
+  let decimals: number
+  if (absValue < 1) {
+    decimals = 4
+  } else if (absValue < 10) {
+    decimals = 3
+  } else if (absValue < 100) {
+    decimals = 2
+  } else if (absValue < 1000) {
+    decimals = 1
+  } else {
+    decimals = 0
+  }
+  
   return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals
   }).format(value)
 }
 
 /**
  * Format a number with specified decimal places
+ * @deprecated Use formatNumberOptimized for better display formatting
  */
 export function formatNumber(value: number, minDecimals: number = 0, maxDecimals: number = 2): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: minDecimals,
-    maximumFractionDigits: maxDecimals
-  }).format(value)
+  return formatNumberOptimized(value)
+}
+
+/**
+ * Format a number with currency symbol
+ */
+export function formatCurrency(value: number, currency: string = 'ATLAS'): string {
+  return `${formatNumberOptimized(value)} ${currency}`
+}
+
+/**
+ * Format a number as USD currency
+ */
+export function formatUSD(value: number, decimals?: number): string {
+  // If decimals is explicitly provided, use it; otherwise use optimized formatting
+  if (decimals !== undefined) {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(value)
+  }
+  
+  // Use optimized formatting for USD
+  const formatted = formatNumberOptimized(value)
+  return `$${formatted}`
+}
+
+export function formatVotingPower(power: number): string {
+  return formatNumberOptimized(power)
 }
 

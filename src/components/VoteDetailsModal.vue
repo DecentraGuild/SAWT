@@ -322,14 +322,15 @@ function getFactionClass(wallet: string): string {
   return ''
 }
 
-// Get faction logo path
-function getFactionLogo(wallet: string): string | null {
+// Get faction logo path - using raw GitHub URLs for reliable GitHub Pages deployment
+function getFactionLogo(wallet: string): string | undefined {
   const faction = getFaction(wallet)
-  if (!faction) return null
-  if (faction === 'MUD') return '/MUD.svg'
-  if (faction === 'USTUR') return '/Ustur.svg'
-  if (faction === 'ONI') return '/ONI.svg'
-  return null
+  if (!faction) return undefined
+  const baseUrl = 'https://raw.githubusercontent.com/DecentraGuild/SAWT/main/public'
+  if (faction === 'MUD') return `${baseUrl}/MUD.svg`
+  if (faction === 'USTUR') return `${baseUrl}/Ustur.svg`
+  if (faction === 'ONI') return `${baseUrl}/ONI.svg`
+  return undefined
 }
 
 // Get highlight class for current wallet based on faction

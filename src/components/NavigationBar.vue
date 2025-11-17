@@ -139,14 +139,15 @@ const factionClass = computed(() => {
   return ''
 })
 
-// Get faction logo path
+// Get faction logo path - using raw GitHub URLs for reliable GitHub Pages deployment
 const factionLogo = computed(() => {
-  if (!profile.value?.faction) return null
+  if (!profile.value?.faction) return undefined
   const faction = profile.value.faction.toUpperCase()
-  if (faction === 'MUD') return '/MUD.svg'
-  if (faction === 'USTUR') return '/Ustur.svg'
-  if (faction === 'ONI') return '/ONI.svg'
-  return null
+  const baseUrl = 'https://raw.githubusercontent.com/DecentraGuild/SAWT/main/public'
+  if (faction === 'MUD') return `${baseUrl}/MUD.svg`
+  if (faction === 'USTUR') return `${baseUrl}/Ustur.svg`
+  if (faction === 'ONI') return `${baseUrl}/ONI.svg`
+  return undefined
 })
 
 // Format last active date

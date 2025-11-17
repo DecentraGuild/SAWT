@@ -16,7 +16,7 @@ export const DACB_WRAPPER_QUERY = gql`
   query DacbWrapper {
     allSolanaTokenMints(
       condition: { mint: "${DAC_BLOONS_MINT}" }
-      first: 10000
+      first: 2000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -41,7 +41,7 @@ export const DACB_WRAPPER_QUERY = gql`
     }
     allSolanaTokenBurns(
       condition: { mint: "${DAC_BLOONS_MINT}" }
-      first: 10000
+      first: 2000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -66,7 +66,7 @@ export const DACB_WRAPPER_QUERY = gql`
     }
     allSolanaTokenTransfers(
       condition: { mint: "${DAC_BLOONS_MINT}" }
-      first: 10000
+      first: 2000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -93,37 +93,8 @@ export const DACB_WRAPPER_QUERY = gql`
         hasNextPage
       }
     }
-    # ATLAS transfers for DACB wrap ratio calculation
-    # Limited to recent transfers - we'll filter to wrap-related ones in the store
-    atlasTransfers: allSolanaTokenTransfers(
-      condition: { mint: "${ATLAS_MINT}" }
-      first: 5000
-      orderBy: TIMESTAMP_DESC
-    ) {
-      nodes {
-        amountRaw
-        byProgram
-        byInstruction
-        fromAccount
-        toAccount
-        timestamp
-        signature
-        mint
-        instruction
-        instructionIdx
-        instructionInnerIdx
-        solanaAccountByFromAccount {
-          owner
-        }
-        solanaAccountByToAccount {
-          owner
-        }
-      }
-      pageInfo {
-        endCursor
-        hasNextPage
-      }
-    }
+    # ATLAS transfers removed - not used in calculations
+    # Wrap ratios are calculated from wrapperTransfers in WRAPPER_QUERY
   }
 `
 
@@ -135,7 +106,7 @@ export const DAOB_WRAPPER_QUERY = gql`
   query DaobWrapper {
     allSolanaTokenMints(
       condition: { mint: "${DAO_BLOONS_MINT}" }
-      first: 10000
+      first: 2000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -160,7 +131,7 @@ export const DAOB_WRAPPER_QUERY = gql`
     }
     allSolanaTokenBurns(
       condition: { mint: "${DAO_BLOONS_MINT}" }
-      first: 10000
+      first: 2000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -185,7 +156,7 @@ export const DAOB_WRAPPER_QUERY = gql`
     }
     allSolanaTokenTransfers(
       condition: { mint: "${DAO_BLOONS_MINT}" }
-      first: 10000
+      first: 2000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -212,50 +183,21 @@ export const DAOB_WRAPPER_QUERY = gql`
         hasNextPage
       }
     }
-    # POLIS transfers for DAOB wrap ratio calculation
-    # Limited to recent transfers - we'll filter to wrap-related ones in the store
-    polisTransfers: allSolanaTokenTransfers(
-      condition: { mint: "${POLIS_MINT}" }
-      first: 5000
-      orderBy: TIMESTAMP_DESC
-    ) {
-      nodes {
-        amountRaw
-        byProgram
-        byInstruction
-        fromAccount
-        toAccount
-        timestamp
-        signature
-        mint
-        instruction
-        instructionIdx
-        instructionInnerIdx
-        solanaAccountByFromAccount {
-          owner
-        }
-        solanaAccountByToAccount {
-          owner
-        }
-      }
-      pageInfo {
-        endCursor
-        hasNextPage
-      }
-    }
+    # POLIS transfers removed - not used in calculations
+    # Wrap ratios are calculated from wrapperTransfers in WRAPPER_QUERY
   }
 `
 
 /**
  * Query to fetch POLIS and ATLAS deposits for the wrapper program
  * Used to map deposits by signature and calculate DAOB results for each wallet
- * Limited to 20000 records to prevent unbounded queries
+ * Limited to 200 records per query - we only need recent deposits for matching
  */
 export const WRAPPER_QUERY = gql`
   query Wrapper {
     allSolanaTokenMints(
       condition: { byProgram: "${WRAPPER_PROGRAM}" }
-      first: 20000
+      first: 200
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -274,7 +216,7 @@ export const WRAPPER_QUERY = gql`
     }
     allSolanaTokenBurns(
       condition: { byProgram: "${WRAPPER_PROGRAM}" }
-      first: 20000
+      first: 200
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -293,7 +235,7 @@ export const WRAPPER_QUERY = gql`
     }
     allSolanaTokenTransfers(
       condition: { byProgram: "${WRAPPER_PROGRAM}" }
-      first: 20000
+      first: 200
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -322,7 +264,7 @@ export const DACB_MULTISIG_QUERY = gql`
   query DacbMultisig {
     allSolanaTokenTransfers(
       condition: { byProgram: "${DACB_MULTISIG_PROGRAM}", mint: "${ATLAS_MINT}" }
-      first: 10000
+      first: 100
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -334,6 +276,10 @@ export const DACB_MULTISIG_QUERY = gql`
         byInstruction
         amountRaw
         signature
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
       }
     }
   }

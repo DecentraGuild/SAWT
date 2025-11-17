@@ -93,13 +93,11 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
   const dacbMints = ref<TokenMint[]>([])
   const dacbBurns = ref<TokenBurn[]>([])
   const dacbTransfers = ref<TokenTransfer[]>([])
-  const dacbAtlasTransfers = ref<TokenTransfer[]>([])
   
   // DAOB data
   const daobMints = ref<TokenMint[]>([])
   const daobBurns = ref<TokenBurn[]>([])
   const daobTransfers = ref<TokenTransfer[]>([])
-  const daobPolisTransfers = ref<TokenTransfer[]>([])
   
   // Wrapper deposits (POLIS and ATLAS deposits by wrapper program)
   const wrapperMints = ref<WrapperMint[]>([])
@@ -166,7 +164,6 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
       daobMints.value,
       daobBurns.value,
       daobTransfers.value,
-      daobPolisTransfers.value,
       daobWrapRatios.value
     )
   })
@@ -371,7 +368,6 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     tokenMints: TokenMint[],
     tokenBurns: TokenBurn[],
     tokenTransfers: TokenTransfer[],
-    _inputTokenTransfers: TokenTransfer[],
     wrapRatios: WrapRatio[]
   ) {
     // Create a map of POLIS deposits by signature from wrapper transfers
@@ -515,11 +511,19 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
   }
 
   async function fetchData() {
+    console.log('[SB Fetch] ========================================')
+    console.log('[SB Fetch] Starting SB data fetch...')
+    console.time('[SB Fetch] Total fetch time')
+    
     loading.value = true
     error.value = null
 
     try {
-      // Fetch DACB, DAOB, wrapper, and DACB multisig data in parallel for better performance
+      // Fetch all queries in parallel - this is faster than batching
+      // The server can handle parallel requests, and this reduces total wait time
+      console.log('[SB Fetch] Fetching all queries in parallel...')
+      console.time('[SB Fetch] All queries parallel')
+      
       const [dacbResponse, daobResponse, wrapperResponse, dacbMultisigResponse] = await Promise.all([
         fetchDACBWrapperData(),
         fetchDAOBWrapperData(),
@@ -527,17 +531,21 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
         fetchDACBMultisigData()
       ])
       
+      console.timeEnd('[SB Fetch] All queries parallel')
+      
+      // Process all data after all queries complete
+      console.log('[SB Fetch] Processing all data...')
+      console.time('[SB Fetch] Process all data')
+      
       // Process DACB data
       dacbMints.value = dacbResponse.allSolanaTokenMints.nodes
       dacbBurns.value = dacbResponse.allSolanaTokenBurns.nodes
       dacbTransfers.value = dacbResponse.allSolanaTokenTransfers.nodes
-      dacbAtlasTransfers.value = dacbResponse.atlasTransfers?.nodes || []
       
       // Process DAOB data
       daobMints.value = daobResponse.allSolanaTokenMints.nodes
       daobBurns.value = daobResponse.allSolanaTokenBurns.nodes
       daobTransfers.value = daobResponse.allSolanaTokenTransfers.nodes
-      daobPolisTransfers.value = daobResponse.polisTransfers?.nodes || []
       
       // Process wrapper data (POLIS and ATLAS deposits)
       wrapperMints.value = wrapperResponse.allSolanaTokenMints.nodes
@@ -545,17 +553,23 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
       
       // Process DACB multisig data (ATLAS deposits for DACB mints)
       dacbMultisigTransfers.value = dacbMultisigResponse.allSolanaTokenTransfers.nodes
+      
+      console.timeEnd('[SB Fetch] Process all data')
+      
+      console.timeEnd('[SB Fetch] Total fetch time')
+      console.log('[SB Fetch] ========================================')
+      console.log('[SB Fetch] Fetch completed successfully!')
     } catch (err) {
+      console.error('[SB Fetch] Error occurred:', err)
+      console.timeEnd('[SB Fetch] Total fetch time')
       error.value = err instanceof Error ? err.message : 'Failed to fetch token wrapper data'
       // Reset all data on error
       dacbMints.value = []
       dacbBurns.value = []
       dacbTransfers.value = []
-      dacbAtlasTransfers.value = []
       daobMints.value = []
       daobBurns.value = []
       daobTransfers.value = []
-      daobPolisTransfers.value = []
       wrapperMints.value = []
       wrapperTransfers.value = []
       dacbMultisigTransfers.value = []
@@ -571,6 +585,9 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
 
   // Combined all transactions sorted by timestamp desc, grouped by signature
   const allTransactions = computed(() => {
+    console.log('[SB Fetch] Computing allTransactions...')
+    console.time('[SB Fetch] allTransactions computation')
+    
     // Create maps for fast lookup by signature
     const mintsBySignature = new Map<string, TokenMint>()
     const burnsBySignature = new Map<string, TokenBurn>()
@@ -848,11 +865,22 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     }
 
     // Sort by timestamp desc
-    return combinedTransactions.sort((a, b) => {
+    const sorted = combinedTransactions.sort((a, b) => {
       const timeA = new Date(a.timestamp).getTime()
       const timeB = new Date(b.timestamp).getTime()
       return timeB - timeA
     })
+    
+    console.timeEnd('[SB Fetch] allTransactions computation')
+    console.log('[SB Fetch] allTransactions computed:', {
+      totalTransactions: sorted.length,
+      mints: mintsBySignature.size,
+      burns: burnsBySignature.size,
+      transfers: transfersBySignature.size,
+      deposits: depositsBySignature.size
+    })
+    
+    return sorted
   })
 
   return {

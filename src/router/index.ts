@@ -62,6 +62,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/Votes.vue')
       },
       {
+        path: '/sb',
+        name: 'SB',
+        component: () => import('../views/SB.vue')
+      },
+      {
         path: '/raw-data',
         name: 'RawData',
         component: () => import('../views/RawData.vue')

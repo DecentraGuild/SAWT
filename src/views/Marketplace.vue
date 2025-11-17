@@ -146,10 +146,18 @@ onMounted(async () => {
 // Watch for wallet changes and automatically fetch exchanges (only on initial load or wallet change)
 watch(() => walletStore.address, async (newAddress) => {
   if (newAddress && newAddress.trim()) {
+    // Convert empty strings to undefined for date filtering
+    const startDate = walletStore.startDate && walletStore.startDate.trim() 
+      ? walletStore.startDate.trim() 
+      : undefined
+    const endDate = walletStore.endDate && walletStore.endDate.trim() 
+      ? walletStore.endDate.trim() 
+      : undefined
+    
     await marketplaceStore.fetchExchanges(
       newAddress.trim(),
-      walletStore.startDate || undefined,
-      walletStore.endDate || undefined
+      startDate,
+      endDate
     )
   } else {
     marketplaceStore.clearExchanges()
@@ -159,10 +167,18 @@ watch(() => walletStore.address, async (newAddress) => {
 // Watch for explicit refresh trigger (when refresh button is clicked)
 watch(() => walletStore.refreshTrigger, async () => {
   if (walletStore.address && walletStore.address.trim()) {
+    // Convert empty strings to undefined for date filtering
+    const startDate = walletStore.startDate && walletStore.startDate.trim() 
+      ? walletStore.startDate.trim() 
+      : undefined
+    const endDate = walletStore.endDate && walletStore.endDate.trim() 
+      ? walletStore.endDate.trim() 
+      : undefined
+    
     await marketplaceStore.fetchExchanges(
       walletStore.address.trim(),
-      walletStore.startDate || undefined,
-      walletStore.endDate || undefined
+      startDate,
+      endDate
     )
   }
 })
@@ -246,6 +262,7 @@ const tableData = computed(() => {
     const ATLAS_MINT = 'ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx'
     
     // Get historical ATLAS price for this transaction date
+    // Use the same logic as the store: historical price if available, otherwise oldest available (day 365), otherwise current
     let atlasPriceForDate = atlasPriceUSD.value
     if (exchange.timestamp) {
       try {
@@ -255,9 +272,29 @@ const tableData = computed(() => {
         const historicalPrice = marketplaceStore.atlasPriceHistory.get(tradeDayTimestamp)
         if (historicalPrice && historicalPrice > 0) {
           atlasPriceForDate = historicalPrice
+        } else {
+          // Fallback to oldest available historical price (day 365) for trades older than available data
+          const priceHistory = marketplaceStore.atlasPriceHistory
+          if (priceHistory.size > 0) {
+            const timestamps = Array.from(priceHistory.keys())
+            const oldestTimestamp = Math.min(...timestamps)
+            const lastKnownPrice = priceHistory.get(oldestTimestamp)
+            if (lastKnownPrice && lastKnownPrice > 0) {
+              atlasPriceForDate = lastKnownPrice
+            }
+          }
         }
       } catch (err) {
-        // Fallback to current price
+        // Fallback to oldest available price or current price
+        const priceHistory = marketplaceStore.atlasPriceHistory
+        if (priceHistory.size > 0) {
+          const timestamps = Array.from(priceHistory.keys())
+          const oldestTimestamp = Math.min(...timestamps)
+          const lastKnownPrice = priceHistory.get(oldestTimestamp)
+          if (lastKnownPrice && lastKnownPrice > 0) {
+            atlasPriceForDate = lastKnownPrice
+          }
+        }
       }
     }
     

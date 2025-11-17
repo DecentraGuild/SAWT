@@ -183,12 +183,60 @@ export const useMarketplaceStore = defineStore('marketplace', () => {
     return totalSellVolume.value - totalBuyVolume.value
   })
 
-  // USD equivalents (ATLAS value * ATLAS price)
-  const totalVolumeUSD = computed(() => totalVolume.value * atlasPriceUSD.value)
-  const totalBuyVolumeUSD = computed(() => totalBuyVolume.value * atlasPriceUSD.value)
-  const totalSellVolumeUSD = computed(() => totalSellVolume.value * atlasPriceUSD.value)
-  const totalFeesUSD = computed(() => totalFees.value * atlasPriceUSD.value)
-  const profitsUSD = computed(() => profits.value * atlasPriceUSD.value)
+  // Calculate USD value for a single exchange using its historical price
+  function getTransactionTotalUSD(exchange: ExchangeNode): number {
+    const atlasAmount = getTransactionTotalAtlas(exchange)
+    const atlasPrice = exchange.timestamp 
+      ? getAtlasPriceForDate(exchange.timestamp)
+      : atlasPriceUSD.value
+    return atlasAmount * atlasPrice
+  }
+
+  // USD equivalents (calculated per-transaction using historical prices, then summed)
+  const totalVolumeUSD = computed(() => {
+    return exchanges.value.reduce((sum, exchange) => {
+      return sum + getTransactionTotalUSD(exchange)
+    }, 0)
+  })
+
+  const totalBuyVolumeUSD = computed(() => {
+    const walletAddress = lastFetchedWallet.value
+    if (!walletAddress) return 0
+    
+    return exchanges.value.reduce((sum, exchange) => {
+      const decodedSide = getDecodedSide(exchange, walletAddress)
+      if (decodedSide === 'BUY') {
+        return sum + getTransactionTotalUSD(exchange)
+      }
+      return sum
+    }, 0)
+  })
+
+  const totalSellVolumeUSD = computed(() => {
+    const walletAddress = lastFetchedWallet.value
+    if (!walletAddress) return 0
+    
+    return exchanges.value.reduce((sum, exchange) => {
+      const decodedSide = getDecodedSide(exchange, walletAddress)
+      if (decodedSide === 'SELL') {
+        return sum + getTransactionTotalUSD(exchange)
+      }
+      return sum
+    }, 0)
+  })
+
+  const totalFeesUSD = computed(() => {
+    return exchanges.value.reduce((sum, exchange) => {
+      const fee = parseFloat(exchange.fee || '0')
+      const feeAtlas = convertToAtlas(fee, exchange.pair || '', exchange.timestamp)
+      const atlasPrice = exchange.timestamp 
+        ? getAtlasPriceForDate(exchange.timestamp)
+        : atlasPriceUSD.value
+      return sum + (feeAtlas * atlasPrice)
+    }, 0)
+  })
+
+  const profitsUSD = computed(() => totalSellVolumeUSD.value - totalBuyVolumeUSD.value)
 
   // Count unique assets traded (not pairs)
   const uniqueAssets = computed(() => {
@@ -283,7 +331,14 @@ export const useMarketplaceStore = defineStore('marketplace', () => {
     error.value = null
 
     try {
-      exchanges.value = await fetchExchangesByWallet(wallet, startDate, endDate)
+      const fetchedExchanges = await fetchExchangesByWallet(wallet, startDate, endDate)
+      console.log('[Marketplace] Fetched exchanges:', fetchedExchanges.length)
+      
+      // Simply replace the entire array - this is the cleanest way
+      exchanges.value = fetchedExchanges
+      
+      console.log('[Marketplace] Exchanges array updated:', exchanges.value.length, 'Total Volume:', totalVolume.value)
+      
       lastFetchedWallet.value = wallet
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch exchanges'
@@ -445,6 +500,7 @@ export const useMarketplaceStore = defineStore('marketplace', () => {
     profitsUSD,
     uniqueAssets,
     atlasPriceUSD,
+    atlasPriceHistory,
     assetName,
     starbaseCargos,
     nfts,

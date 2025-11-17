@@ -22,11 +22,21 @@
           </div>
           <div class="summary-item">
             <span class="summary-label">Total Votes:</span>
-            <span class="summary-value">{{ results.totalVotes }}</span>
+            <span class="summary-value">
+              {{ filteredVotes.length }}
+              <span v-if="selectedFaction && filteredVotes.length !== results.totalVotes" class="filter-indicator">
+                (of {{ results.totalVotes }})
+              </span>
+            </span>
           </div>
           <div class="summary-item">
             <span class="summary-label">Total Voting Power:</span>
-            <span class="summary-value">{{ formatVotingPower(results.totalVotingPower) }} PVP</span>
+            <span class="summary-value">
+              {{ formatVotingPower(filteredTotalVotingPower) }} PVP
+              <span v-if="selectedFaction && filteredTotalVotingPower !== results.totalVotingPower" class="filter-indicator">
+                (of {{ formatVotingPower(results.totalVotingPower) }})
+              </span>
+            </span>
           </div>
         </div>
 
@@ -121,16 +131,32 @@
 
         <div class="leaderboard-controls">
           <h3>Vote Leaderboard</h3>
-          <div class="view-toggle">
-            <label class="toggle-label">
-              <input
-                type="checkbox"
-                v-model="isGroupedView"
-                class="toggle-input"
-              />
-              <span class="toggle-slider"></span>
-              <span class="toggle-text">{{ isGroupedView ? 'Grouped' : 'Combined' }}</span>
-            </label>
+          <div class="controls-right">
+            <div class="faction-filter">
+              <label for="faction-filter" class="filter-label">Filter by Faction:</label>
+              <select
+                id="faction-filter"
+                v-model="selectedFaction"
+                class="faction-select"
+              >
+                <option value="">All Factions</option>
+                <option value="MUD">MUD</option>
+                <option value="USTUR">USTUR</option>
+                <option value="ONI">ONI</option>
+                <option value="none">No Faction</option>
+              </select>
+            </div>
+            <div class="view-toggle">
+              <label class="toggle-label">
+                <input
+                  type="checkbox"
+                  v-model="isGroupedView"
+                  class="toggle-input"
+                />
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">{{ isGroupedView ? 'Grouped' : 'Combined' }}</span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -138,19 +164,34 @@
         <div v-if="!isGroupedView" class="leaderboard">
           <div class="leaderboard-list" ref="combinedListRef">
             <div
-              v-for="(vote, index) in results.votes"
+              v-for="(vote, index) in filteredVotes"
               :key="vote.id"
               :ref="el => setCombinedItemRef(el, vote.walletPublicKey)"
               class="leaderboard-item"
               :class="[
                 getVoteClass(vote.voteResult),
-                { 'wallet-highlight': isCurrentWallet(vote.walletPublicKey) }
+                getHighlightClass(vote.walletPublicKey)
               ]"
             >
-              <div class="rank">#{{ index + 1 }}</div>
+              <div class="rank">
+                <span>#{{ index + 1 }}</span>
+                <div class="faction-logo-container">
+                  <img
+                    v-if="getFactionLogo(vote.walletPublicKey)"
+                    :src="getFactionLogo(vote.walletPublicKey)"
+                    :alt="getFaction(vote.walletPublicKey) || ''"
+                    class="faction-logo-small"
+                  />
+                </div>
+              </div>
               <div class="vote-info">
                 <div class="vote-wallet-container">
-                  <span class="vote-wallet">{{ formatWallet(vote.walletPublicKey) }}</span>
+                  <span 
+                    class="vote-wallet" 
+                    :class="getFactionClass(vote.walletPublicKey)"
+                  >
+                    {{ getUsername(vote.walletPublicKey) || formatWallet(vote.walletPublicKey) }}
+                  </span>
                   <BaseCopyButton
                     :text-to-copy="vote.walletPublicKey"
                     size="small"
@@ -191,13 +232,28 @@
                 class="leaderboard-item"
                 :class="[
                   getVoteClass(vote.voteResult),
-                  { 'wallet-highlight': isCurrentWallet(vote.walletPublicKey) }
+                  getHighlightClass(vote.walletPublicKey)
                 ]"
               >
-                <div class="rank">#{{ index + 1 }}</div>
+                <div class="rank">
+                  <span>#{{ index + 1 }}</span>
+                  <div class="faction-logo-container">
+                    <img
+                      v-if="getFactionLogo(vote.walletPublicKey)"
+                      :src="getFactionLogo(vote.walletPublicKey)"
+                      :alt="getFaction(vote.walletPublicKey) || ''"
+                      class="faction-logo-small"
+                    />
+                  </div>
+                </div>
                 <div class="vote-info">
                   <div class="vote-wallet-container">
-                    <span class="vote-wallet">{{ formatWallet(vote.walletPublicKey) }}</span>
+                    <span 
+                      class="vote-wallet" 
+                      :class="getFactionClass(vote.walletPublicKey)"
+                    >
+                      {{ getUsername(vote.walletPublicKey) || formatWallet(vote.walletPublicKey) }}
+                    </span>
                     <BaseCopyButton
                       :text-to-copy="vote.walletPublicKey"
                       size="small"
@@ -230,6 +286,7 @@ import { fetchVoteResultsByProposal, type ProposalVoteResults } from '../service
 import { formatVotingPower, formatVoteResult, formatVoteResultFull, formatWallet, formatDate, formatNumberOptimized } from '../utils/formatters'
 import { useWalletStore } from '../stores/wallet'
 import { useVotesStore } from '../stores/votes'
+import { usePlayerProfilesStore } from '../stores/playerProfiles'
 import type { VoteNode } from '../services/votesService'
 import BaseCopyButton from './BaseCopyButton.vue'
 
@@ -243,6 +300,47 @@ interface Props {
 const props = defineProps<Props>()
 const walletStore = useWalletStore()
 const votesStore = useVotesStore()
+const playerProfilesStore = usePlayerProfilesStore()
+
+// Get username for a wallet
+function getUsername(wallet: string): string | null {
+  return playerProfilesStore.getUsername(wallet)
+}
+
+// Get faction for a wallet
+function getFaction(wallet: string): string | null {
+  return playerProfilesStore.getFaction(wallet)
+}
+
+// Get faction class for styling
+function getFactionClass(wallet: string): string {
+  const faction = getFaction(wallet)
+  if (!faction) return ''
+  if (faction === 'MUD') return 'faction-mud'
+  if (faction === 'USTUR') return 'faction-ustur'
+  if (faction === 'ONI') return 'faction-oni'
+  return ''
+}
+
+// Get faction logo path
+function getFactionLogo(wallet: string): string | null {
+  const faction = getFaction(wallet)
+  if (!faction) return null
+  if (faction === 'MUD') return '/MUD.svg'
+  if (faction === 'USTUR') return '/Ustur.svg'
+  if (faction === 'ONI') return '/ONI.svg'
+  return null
+}
+
+// Get highlight class for current wallet based on faction
+function getHighlightClass(wallet: string): string {
+  if (!isCurrentWallet(wallet)) return ''
+  const faction = getFaction(wallet)
+  if (faction === 'MUD') return 'wallet-highlight-faction-mud'
+  if (faction === 'USTUR') return 'wallet-highlight-faction-ustur'
+  if (faction === 'ONI') return 'wallet-highlight-faction-oni'
+  return 'wallet-highlight-default'
+}
 
 const emit = defineEmits<{
   close: []
@@ -252,6 +350,7 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const results = ref<ProposalVoteResults | null>(null)
 const isGroupedView = ref(false)
+const selectedFaction = ref<string>('')
 const combinedListRef = ref<HTMLElement | null>(null)
 const combinedItemRefs = ref<Map<string, HTMLElement>>(new Map())
 const groupListRefs = ref<Map<string, HTMLElement>>(new Map())
@@ -298,16 +397,16 @@ const isFinalized = computed(() => {
   return !isVotingActive.value
 })
 
-// Calculate vote breakdown (Yes vs No)
+// Calculate vote breakdown (Yes vs No) - using filtered votes
 const voteBreakdown = computed(() => {
-  if (!results.value || results.value.votes.length === 0) return null
+  if (!results.value || filteredVotes.value.length === 0) return null
 
   let yesPvp = 0
   let noPvp = 0
   let yesCount = 0
   let noCount = 0
 
-  for (const vote of results.value.votes) {
+  for (const vote of filteredVotes.value) {
     const power = parseFloat(vote.votingPower || '0')
     const result = (vote.voteResult || '').toLowerCase()
     
@@ -372,12 +471,36 @@ const winnerMarginText = computed(() => {
   return `by ${formatVotingPower(margin)} PVP`
 })
 
-// Group votes by vote result
+// Filter votes by faction
+const filteredVotes = computed(() => {
+  if (!results.value) return []
+  
+  if (!selectedFaction.value) {
+    return results.value.votes
+  }
+  
+  return results.value.votes.filter(vote => {
+    const faction = getFaction(vote.walletPublicKey)
+    if (selectedFaction.value === 'none') {
+      return !faction
+    }
+    return faction === selectedFaction.value
+  })
+})
+
+// Calculate total voting power for filtered votes
+const filteredTotalVotingPower = computed(() => {
+  return filteredVotes.value.reduce((sum, vote) => {
+    return sum + parseFloat(vote.votingPower || '0')
+  }, 0)
+})
+
+// Group votes by vote result (using filtered votes)
 const groupedVotes = computed(() => {
   if (!results.value) return []
   
   const groups = new Map<string, VoteNode[]>()
-  for (const vote of results.value.votes) {
+  for (const vote of filteredVotes.value) {
     const result = vote.voteResult || 'Unknown'
     if (!groups.has(result)) {
       groups.set(result, [])
@@ -405,12 +528,19 @@ const groupedVotes = computed(() => {
 
 watch(() => props.isOpen, async (newValue) => {
   if (newValue && props.proposalId) {
+    // Ensure profiles are loaded
+    if (playerProfilesStore.profiles.length === 0 && !playerProfilesStore.loading) {
+      await playerProfilesStore.fetchProfiles()
+    }
+    // Reset filter when opening modal
+    selectedFaction.value = ''
     await loadResults()
     await nextTick()
     scrollToWallet()
   } else {
     results.value = null
     error.value = null
+    selectedFaction.value = ''
     combinedItemRefs.value.clear()
     groupListRefs.value.clear()
     groupItemRefs.value.clear()
@@ -768,6 +898,13 @@ function scrollToWallet() {
   color: var(--color-text-tertiary);
 }
 
+.filter-indicator {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-weight: 400;
+  margin-left: var(--spacing-xs);
+}
+
 .summary-item {
   display: flex;
   flex-direction: column;
@@ -956,12 +1093,56 @@ function scrollToWallet() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-sm);
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
 }
 
 .leaderboard-controls h3 {
   margin: 0;
   font-size: var(--font-size-lg);
   color: var(--color-text-primary);
+}
+
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.faction-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.filter-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.faction-select {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  min-width: 140px;
+}
+
+.faction-select:hover {
+  border-color: var(--color-accent-teal);
+}
+
+.faction-select:focus {
+  outline: none;
+  border-color: var(--color-accent-teal);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
 }
 
 .view-toggle {
@@ -1070,19 +1251,66 @@ function scrollToWallet() {
   background-color: rgba(239, 68, 68, 0.1);
 }
 
-.leaderboard-item.wallet-highlight {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.25) 100%);
-  border: 2px solid #ffd700;
-  box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+/* Faction-specific wallet highlights */
+.leaderboard-item.wallet-highlight-faction-mud {
+  background: linear-gradient(135deg, var(--color-faction-mud-bg) 0%, rgba(255, 68, 68, 0.25) 100%);
+  border: 2px solid var(--color-faction-mud-bright);
+  box-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
 }
 
-.leaderboard-item.wallet-highlight .vote-wallet {
-  color: #ffd700;
+.leaderboard-item.wallet-highlight-faction-mud .vote-wallet {
+  color: var(--color-faction-mud-bright);
   font-weight: 700;
 }
 
-.leaderboard-item.wallet-highlight .rank {
-  color: #ffd700;
+.leaderboard-item.wallet-highlight-faction-mud .rank {
+  color: var(--color-faction-mud-bright);
+}
+
+.leaderboard-item.wallet-highlight-faction-ustur {
+  background: linear-gradient(135deg, var(--color-faction-ustur-bg) 0%, rgba(255, 215, 0, 0.25) 100%);
+  border: 2px solid var(--color-faction-ustur-bright);
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.leaderboard-item.wallet-highlight-faction-ustur .vote-wallet {
+  color: var(--color-faction-ustur-bright);
+  font-weight: 700;
+}
+
+.leaderboard-item.wallet-highlight-faction-ustur .rank {
+  color: var(--color-faction-ustur-bright);
+}
+
+.leaderboard-item.wallet-highlight-faction-oni {
+  background: linear-gradient(135deg, var(--color-faction-oni-bg) 0%, rgba(68, 68, 255, 0.25) 100%);
+  border: 2px solid var(--color-faction-oni-bright);
+  box-shadow: 0 0 10px rgba(68, 68, 255, 0.3);
+}
+
+.leaderboard-item.wallet-highlight-faction-oni .vote-wallet {
+  color: var(--color-faction-oni-bright);
+  font-weight: 700;
+}
+
+.leaderboard-item.wallet-highlight-faction-oni .rank {
+  color: var(--color-faction-oni-bright);
+}
+
+/* Default highlight for wallets without faction/profile */
+.leaderboard-item.wallet-highlight-default {
+  background: linear-gradient(135deg, var(--color-highlight-default-bg) 0%, rgba(168, 85, 247, 0.25) 100%);
+  border: 2px solid var(--color-highlight-default);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+
+.leaderboard-item.wallet-highlight-default .vote-wallet {
+  color: var(--color-highlight-default);
+  font-weight: 700;
+}
+
+.leaderboard-item.wallet-highlight-default .rank {
+  color: var(--color-highlight-default);
 }
 
 .grouped-leaderboard {
@@ -1116,9 +1344,28 @@ function scrollToWallet() {
   font-size: var(--font-size-base);
   font-weight: 700;
   color: var(--color-text-secondary);
-  min-width: 40px;
+  min-width: 70px;
+  width: 70px;
   text-align: center;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+}
+
+.faction-logo-container {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.faction-logo-small {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .vote-info {
@@ -1148,6 +1395,21 @@ function scrollToWallet() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.vote-wallet.faction-mud {
+  color: var(--color-faction-mud-bright);
+  font-weight: 700;
+}
+
+.vote-wallet.faction-ustur {
+  color: var(--color-faction-ustur-bright);
+  font-weight: 700;
+}
+
+.vote-wallet.faction-oni {
+  color: var(--color-faction-oni-bright);
+  font-weight: 700;
 }
 
 
@@ -1183,9 +1445,12 @@ function scrollToWallet() {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-accent-teal);
-  min-width: 100px;
+  min-width: 120px;
+  width: 120px;
   text-align: right;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 </style>
 

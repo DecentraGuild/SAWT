@@ -48,18 +48,48 @@
         Refresh
       </button>
     </div>
+
+    <!-- Row 3: Profile Info -->
+    <div v-if="walletStore.address.trim() && profile" class="nav-row nav-profile">
+      <div class="profile-info" :class="factionClass">
+        <div class="profile-item">
+          <span class="profile-label">Username:</span>
+          <span class="profile-value">{{ profile.username || 'N/A' }}</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Faction:</span>
+          <div v-if="profile.faction" class="faction-badge-container">
+            <img
+              v-if="factionLogo"
+              :src="factionLogo"
+              :alt="profile.faction"
+              class="faction-logo-profile"
+            />
+            <span class="faction-badge">{{ profile.faction }}</span>
+          </div>
+          <span v-else class="profile-value">N/A</span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Last Active:</span>
+          <span class="profile-value">{{ formattedLastActive }}</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useWalletStore } from '../stores/wallet'
+import { usePlayerProfilesStore } from '../stores/playerProfiles'
 import DateRangePicker from './DateRangePicker.vue'
 import BaseCopyButton from './BaseCopyButton.vue'
+import { formatDate } from '../utils/formatters'
 
 const walletStore = useWalletStore()
+const playerProfilesStore = usePlayerProfilesStore()
 
-const tabs = [
+const allTabs = [
   { name: 'Holdings', path: '/holdings' },
   { name: 'Total', path: '/total' },
   { name: 'Sage', path: '/sage' },
@@ -69,12 +99,61 @@ const tabs = [
   { name: 'Marketplace', path: '/marketplace' },
   { name: 'Rentals', path: '/rentals' },
   { name: 'Votes', path: '/votes' },
+  { name: 'S&B', path: '/sb' },
   { name: 'Raw Data', path: '/raw-data' }
 ]
+
+// Filter out S&B from displayed tabs (but keep it accessible via direct navigation)
+const tabs = computed(() => allTabs.filter(tab => tab.path !== '/sb'))
 
 const walletAddress = ref(walletStore.address)
 const startDate = ref(walletStore.startDate)
 const endDate = ref(walletStore.endDate)
+
+// Sync walletAddress with walletStore.address
+watch(() => walletStore.address, (newAddress) => {
+  walletAddress.value = newAddress
+}, { immediate: true })
+
+// Fetch profiles on mount
+onMounted(async () => {
+  if (playerProfilesStore.profiles.length === 0 && !playerProfilesStore.loading) {
+    await playerProfilesStore.fetchProfiles()
+  }
+})
+
+// Get profile for current wallet - use walletStore.address directly to ensure reactivity
+const profile = computed(() => {
+  const address = walletStore.address.trim()
+  if (!address) return null
+  return playerProfilesStore.getProfileByWallet(address)
+})
+
+// Get faction class for styling
+const factionClass = computed(() => {
+  if (!profile.value?.faction) return ''
+  const faction = profile.value.faction.toUpperCase()
+  if (faction === 'MUD') return 'faction-mud'
+  if (faction === 'USTUR') return 'faction-ustur'
+  if (faction === 'ONI') return 'faction-oni'
+  return ''
+})
+
+// Get faction logo path
+const factionLogo = computed(() => {
+  if (!profile.value?.faction) return null
+  const faction = profile.value.faction.toUpperCase()
+  if (faction === 'MUD') return '/MUD.svg'
+  if (faction === 'USTUR') return '/Ustur.svg'
+  if (faction === 'ONI') return '/ONI.svg'
+  return null
+})
+
+// Format last active date
+const formattedLastActive = computed(() => {
+  if (!profile.value?.lastActive) return 'N/A'
+  return formatDate(profile.value.lastActive)
+})
 
 watch([startDate, endDate], ([newStart, newEnd]) => {
   walletStore.setDateRange(newStart, newEnd)
@@ -188,5 +267,85 @@ function refreshData() {
   opacity: 0.5;
   cursor: not-allowed;
 }
-</style>
 
+.nav-profile {
+  border-top: 1px solid var(--color-border);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.profile-info {
+  display: flex;
+  gap: var(--spacing-lg);
+  align-items: center;
+  flex-wrap: wrap;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-tertiary);
+}
+
+.profile-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.profile-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.profile-value {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.faction-badge-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.faction-logo-profile {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.faction-badge {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+}
+
+.profile-info.faction-mud {
+  background-color: var(--color-faction-mud-bg);
+  border-left: 4px solid var(--color-faction-mud-bright);
+}
+
+.profile-info.faction-mud .faction-badge {
+  background-color: var(--color-faction-mud-dark);
+  color: var(--color-faction-mud-bright);
+}
+
+.profile-info.faction-ustur {
+  background-color: var(--color-faction-ustur-bg);
+  border-left: 4px solid var(--color-faction-ustur-bright);
+}
+
+.profile-info.faction-ustur .faction-badge {
+  background-color: var(--color-faction-ustur-dark);
+  color: var(--color-faction-ustur-bright);
+}
+
+.profile-info.faction-oni {
+  background-color: var(--color-faction-oni-bg);
+  border-left: 4px solid var(--color-faction-oni-bright);
+}
+
+.profile-info.faction-oni .faction-badge {
+  background-color: var(--color-faction-oni-dark);
+  color: var(--color-faction-oni-bright);
+}
+</style>

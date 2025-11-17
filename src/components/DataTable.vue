@@ -149,11 +149,20 @@ function formatValue(val: number, currency: string = 'ATLAS'): string {
   border-bottom: 2px solid var(--color-border);
 }
 
+.data-table th.number-cell {
+  text-align: right;
+}
+
 .data-table td {
   color: var(--color-text-primary);
   padding: var(--spacing-sm) var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-base);
+}
+
+.data-table td.number-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .data-table tbody tr.data-table-row {

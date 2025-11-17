@@ -249,11 +249,13 @@ export const DAOB_WRAPPER_QUERY = gql`
 /**
  * Query to fetch POLIS and ATLAS deposits for the wrapper program
  * Used to map deposits by signature and calculate DAOB results for each wallet
+ * Limited to 20000 records to prevent unbounded queries
  */
 export const WRAPPER_QUERY = gql`
   query Wrapper {
     allSolanaTokenMints(
       condition: { byProgram: "${WRAPPER_PROGRAM}" }
+      first: 20000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -265,9 +267,14 @@ export const WRAPPER_QUERY = gql`
         timestamp
         signature
       }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
     }
     allSolanaTokenBurns(
       condition: { byProgram: "${WRAPPER_PROGRAM}" }
+      first: 20000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -286,6 +293,7 @@ export const WRAPPER_QUERY = gql`
     }
     allSolanaTokenTransfers(
       condition: { byProgram: "${WRAPPER_PROGRAM}" }
+      first: 20000
       orderBy: TIMESTAMP_DESC
     ) {
       nodes {
@@ -297,6 +305,10 @@ export const WRAPPER_QUERY = gql`
         byInstruction
         amountRaw
         signature
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
       }
     }
   }

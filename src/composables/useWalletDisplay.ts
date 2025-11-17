@@ -1,4 +1,3 @@
-import { computed } from 'vue'
 import { useTokenWrapperStore } from '../stores/tokenWrapper'
 import { usePlayerProfilesStore } from '../stores/playerProfiles'
 import { formatWallet } from '../utils/formatters'

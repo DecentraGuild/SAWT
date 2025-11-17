@@ -94,7 +94,7 @@ export function formatNumberOptimized(value: number): string {
  * Format a number with specified decimal places
  * @deprecated Use formatNumberOptimized for better display formatting
  */
-export function formatNumber(value: number, minDecimals: number = 0, maxDecimals: number = 2): string {
+export function formatNumber(value: number, _minDecimals: number = 0, _maxDecimals: number = 2): string {
   return formatNumberOptimized(value)
 }
 

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { fetchExchangesByWallet, type ExchangeNode } from '../services/marketplaceService'
 import { fetchAllNFTs, type StarAtlasNFT } from '../services/starAtlasGalaxyService'
-import { fetchTokenMarketData, fetchTokenMarketChart, type CoinGeckoPriceData } from '../services/coingeckoService'
+import { fetchTokenMarketData, fetchTokenMarketChart } from '../services/coingeckoService'
 
 export interface StarbaseCargo {
   name: string
@@ -261,8 +261,6 @@ export const useMarketplaceStore = defineStore('marketplace', () => {
 
     // Normalize mint address (trim and ensure consistent case)
     const normalizedMint = mint.trim()
-
-    let name: string | undefined = undefined
 
     // Check hardcoded tokens
     if (normalizedMint === 'ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx') {

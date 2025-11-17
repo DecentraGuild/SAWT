@@ -155,24 +155,33 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     // Sort by timestamp and calculate ratios
     wrapTransactions.sort((a, b) => a.timestamp - b.timestamp)
     
-    return wrapTransactions.map(({ transfer, mint }) => {
+    const ratios: WrapRatio[] = []
+    
+    for (const { transfer, mint } of wrapTransactions) {
       const inputAmount = parseFloat(transfer.amountRaw || '0') / DECIMAL_DIVISOR
       const outputAmount = parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR
       
       if (outputAmount === 0) {
-        return null
+        continue
       }
       
       const ratio = inputAmount / outputAmount
       
-      return {
+      const wrapRatio: WrapRatio = {
         inputToken: inputMint === POLIS_MINT ? 'POLIS' : 'ATLAS',
         outputToken: outputMint === DAO_BLOONS_MINT ? 'DAOB' : 'DACB',
         ratio,
-        timestamp: transfer.timestamp,
-        signature: transfer.signature
+        timestamp: transfer.timestamp
       }
-    }).filter((ratio): ratio is WrapRatio => ratio !== null)
+      
+      if (transfer.signature) {
+        wrapRatio.signature = transfer.signature
+      }
+      
+      ratios.push(wrapRatio)
+    }
+    
+    return ratios
   }
 
   // Calculate DACB transfer-based leaderboard (excluding guild wallets)
@@ -222,7 +231,7 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
 
     return {
       totalHoldings,
-      walletStats: transferStats.map((stat, index) => ({
+      walletStats: transferStats.map((stat) => ({
         wallet: stat.wallet,
         currentHoldings: stat.totalTransferred,
         costBasis: 0, // Not calculated for DACB
@@ -234,13 +243,15 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     }
   }
 
+  // Unused function - kept for potential future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function calculateTokenStats(
     _mintAddress: string,
     tokenMints: TokenMint[],
     tokenBurns: TokenBurn[],
     tokenTransfers: TokenTransfer[],
-    inputTokenTransfers: TokenTransfer[],
-    wrapRatio: WrapRatio | null
+    _inputTokenTransfers: TokenTransfer[],
+    _wrapRatio: WrapRatio | null
   ) {
     // Parse endDate for filtering
     const endDateTimestamp = endDate.value && endDate.value.trim() 
@@ -421,7 +432,7 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     tokenMints: TokenMint[],
     tokenBurns: TokenBurn[],
     tokenTransfers: TokenTransfer[],
-    inputTokenTransfers: TokenTransfer[],
+    _inputTokenTransfers: TokenTransfer[],
     wrapRatios: WrapRatio[]
   ) {
     // Parse endDate for filtering

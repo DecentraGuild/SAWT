@@ -1377,6 +1377,7 @@ function scrollToWallet() {
   gap: var(--spacing-sm);
   min-width: 0;
   overflow: hidden;
+  width: 0; /* Force flex to respect fixed widths of children */
 }
 
 .vote-wallet-container {
@@ -1384,8 +1385,10 @@ function scrollToWallet() {
   align-items: center;
   gap: var(--spacing-xs);
   white-space: nowrap;
-  min-width: 0;
-  flex: 0 1 auto;
+  min-width: 200px;
+  width: 200px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .vote-wallet {
@@ -1421,8 +1424,9 @@ function scrollToWallet() {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   white-space: nowrap;
-  flex-shrink: 1;
-  min-width: 0;
+  min-width: 180px;
+  width: 180px;
+  flex-shrink: 0;
 }
 
 .vote-result {

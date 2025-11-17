@@ -135,6 +135,7 @@ function formatValue(val: number, currency: string = 'ATLAS'): string {
   width: 100%;
   border-collapse: collapse;
   margin-top: var(--spacing-md);
+  table-layout: fixed;
 }
 
 .data-table th {
@@ -147,6 +148,9 @@ function formatValue(val: number, currency: string = 'ATLAS'): string {
   padding: var(--spacing-sm) var(--spacing-md);
   text-align: left;
   border-bottom: 2px solid var(--color-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .data-table th.number-cell {
@@ -158,6 +162,9 @@ function formatValue(val: number, currency: string = 'ATLAS'): string {
   padding: var(--spacing-sm) var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-wrap: break-word;
 }
 
 .data-table td.number-cell {

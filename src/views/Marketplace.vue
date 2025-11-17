@@ -2,6 +2,68 @@
   <div class="page-container">
     <h1>Marketplace</h1>
 
+    <!-- Recent trades section (when no wallet is entered) -->
+    <div v-if="!walletStore.address" class="recent-trades-section">
+      <div class="recent-trades-header">
+        <h2>Recent Trades</h2>
+        <button 
+          v-if="!recentExchangesLoading && recentExchanges.length > 0"
+          class="toggle-button"
+          @click="showRecentTrades = !showRecentTrades"
+          :aria-expanded="showRecentTrades"
+        >
+          <Icon :icon="showRecentTrades ? 'mdi:chevron-up' : 'mdi:chevron-down'" />
+          <span>{{ showRecentTrades ? 'Hide' : 'Show' }} Full Trade History</span>
+        </button>
+      </div>
+      
+      <BaseMessage v-if="recentExchangesError" type="error">
+        {{ recentExchangesError }}
+      </BaseMessage>
+
+      <BaseMessage v-if="recentExchangesLoading" type="loading">
+        Fetching recent trades...
+      </BaseMessage>
+
+      <div v-if="!recentExchangesLoading && recentExchanges.length > 0" class="recent-trades-content">
+        <div class="recent-trades-summary">
+          <div class="summary-row">
+            <div class="summary-item">
+              <span class="summary-label">24hr Volume:</span>
+              <div class="summary-value-container">
+                <span class="summary-value">{{ formatCurrency(volume24hr, 'ATLAS') }}</span>
+                <span class="summary-value-subtext">{{ formatUSD(volume24hrUSD) }}</span>
+              </div>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Recent Trades:</span>
+              <span class="summary-value">{{ recentExchanges.length }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-show="showRecentTrades">
+          <DataTable
+            title="Recent Trade History"
+            :columns="recentTradesTableColumns"
+            :data="recentTradesTableData"
+            :show-summary="false"
+          >
+            <template #cell-buyer="{ value, row }">
+              <span :class="row.buyerClass">{{ value }}</span>
+            </template>
+            <template #cell-seller="{ value, row }">
+              <span :class="row.sellerClass">{{ value }}</span>
+            </template>
+          </DataTable>
+        </div>
+      </div>
+
+      <BaseMessage v-if="!recentExchangesLoading && recentExchanges.length === 0 && !recentExchangesError" type="empty">
+        No recent trades found.
+      </BaseMessage>
+    </div>
+
     <!-- Wallet-specific exchanges section -->
     <div v-if="walletStore.address" class="wallet-exchanges-section">
       <div class="wallet-exchanges-header">
@@ -105,9 +167,6 @@
       </BaseMessage>
     </div>
 
-    <BaseMessage v-if="!walletStore.address" type="info">
-      Enter a wallet address in the top navigation bar to view your marketplace trade history.
-    </BaseMessage>
   </div>
 </template>
 
@@ -148,6 +207,14 @@ const atlasPriceUSD = computed(() => marketplaceStore.atlasPriceUSD)
 const atlasPriceHistory = computed(() => marketplaceStore.atlasPriceHistory)
 
 const showWalletExchanges = ref(false)
+const showRecentTrades = ref(false)
+
+// Recent exchanges (when no wallet)
+const recentExchanges = computed(() => marketplaceStore.recentExchanges)
+const recentExchangesLoading = computed(() => marketplaceStore.recentExchangesLoading)
+const recentExchangesError = computed(() => marketplaceStore.recentExchangesError)
+const volume24hr = computed(() => marketplaceStore.volume24hr)
+const volume24hrUSD = computed(() => marketplaceStore.volume24hrUSD)
 
 // Initialize asset lookup data on mount (load NFTs for ship and NFT lookups)
 onMounted(async () => {
@@ -155,6 +222,10 @@ onMounted(async () => {
   // Fetch player profiles if not already loaded
   if (playerProfilesStore.profiles.length === 0 && !playerProfilesStore.loading) {
     await playerProfilesStore.fetchProfiles()
+  }
+  // Fetch recent exchanges if no wallet is entered
+  if (!walletStore.address) {
+    await marketplaceStore.fetchRecentExchangesData()
   }
 })
 
@@ -176,6 +247,8 @@ watch(() => walletStore.address, async (newAddress) => {
     )
   } else {
     marketplaceStore.clearExchanges()
+    // Fetch recent exchanges when wallet is cleared
+    await marketplaceStore.fetchRecentExchangesData()
   }
 }, { immediate: true })
 
@@ -199,6 +272,22 @@ watch(() => walletStore.refreshTrigger, async () => {
 })
 
 const tableColumns: TableColumn[] = [
+  { key: 'timestamp', label: 'Date', format: 'text' },
+  { key: 'side', label: 'Side', format: 'text' },
+  { key: 'pair', label: 'Pair', format: 'text' },
+  { key: 'asset', label: 'Asset', format: 'text' },
+  { key: 'amount', label: 'Amount', format: 'number' },
+  { key: 'price', label: 'Price', format: 'number' },
+  { key: 'fee', label: 'Fee', format: 'number' },
+  { key: 'totalAtlas', label: 'Total (ATLAS)', format: 'currency' },
+  { key: 'totalUSD', label: 'Total (USD)', format: 'currency-usd' },
+  { key: 'buyer', label: 'Buyer', format: 'text', class: 'hash-cell wallet-cell' },
+  { key: 'seller', label: 'Seller', format: 'text', class: 'hash-cell wallet-cell' },
+  { key: 'instructionIndex', label: 'Instruction', format: 'number' }
+]
+
+// Recent trades table columns (same as wallet table)
+const recentTradesTableColumns: TableColumn[] = [
   { key: 'timestamp', label: 'Date', format: 'text' },
   { key: 'side', label: 'Side', format: 'text' },
   { key: 'pair', label: 'Pair', format: 'text' },
@@ -348,6 +437,120 @@ const tableData = computed(() => {
     }
   })
 })
+
+// Recent trades table data (no wallet perspective - show side from initializer's perspective)
+const recentTradesTableData = computed(() => {
+  // Explicitly depend on nfts and starbaseCargos to ensure reactivity
+  const nftsCount = marketplaceStore.nfts.length
+  const starbaseCargosCount = marketplaceStore.starbaseCargos.length
+  
+  return recentExchanges.value.map(exchange => {
+    // Look up asset name using the mint address
+    const assetMint = exchange.asset || ''
+    const assetDisplayName = assetMint ? assetName(assetMint.trim()) : 'N/A'
+    
+    // Pair is the quote currency (ATLAS/USDC) - just show the token name
+    const pairMint = exchange.pair || ''
+    const pairDisplay = pairMint ? assetName(pairMint.trim()) : 'N/A'
+    
+    // For recent trades, show side from initializer's perspective (no wallet to decode from)
+    const side = exchange.side || 'N/A'
+    
+    // Determine buyer and seller based on side (from initializer's perspective)
+    let buyerAddress = ''
+    let sellerAddress = ''
+    if (exchange.side === 'BUY') {
+      buyerAddress = exchange.orderInitializer
+      sellerAddress = exchange.orderTaker
+    } else if (exchange.side === 'SELL') {
+      sellerAddress = exchange.orderInitializer
+      buyerAddress = exchange.orderTaker
+    } else {
+      buyerAddress = exchange.orderTaker
+      sellerAddress = exchange.orderInitializer
+    }
+    
+    // Format buyer and seller with player profile names
+    const buyer = getWalletDisplayName(buyerAddress)
+    const seller = getWalletDisplayName(sellerAddress)
+    const buyerClass = getFactionClass(buyerAddress)
+    const sellerClass = getFactionClass(sellerAddress)
+    
+    // Calculate transaction total (price + fees) in ATLAS
+    const amount = parseFloat(exchange.amount || '0')
+    const price = parseFloat(exchange.price || '0')
+    const fee = parseFloat(exchange.fee || '0')
+    const totalInQuoteCurrency = (amount * price) + fee
+    
+    // Convert to ATLAS using historical price for this transaction date
+    const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+    const ATLAS_MINT = 'ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx'
+    
+    // Get historical ATLAS price for this transaction date
+    let atlasPriceForDate = atlasPriceUSD.value
+    if (exchange.timestamp) {
+      try {
+        const tradeDate = new Date(exchange.timestamp)
+        const tradeDay = new Date(tradeDate.getFullYear(), tradeDate.getMonth(), tradeDate.getDate())
+        const tradeDayTimestamp = Math.floor(tradeDay.getTime() / 1000)
+        const historicalPrice = marketplaceStore.atlasPriceHistory.get(tradeDayTimestamp)
+        if (historicalPrice && historicalPrice > 0) {
+          atlasPriceForDate = historicalPrice
+        } else {
+          // Fallback to oldest available historical price
+          const priceHistory = marketplaceStore.atlasPriceHistory
+          if (priceHistory.size > 0) {
+            const timestamps = Array.from(priceHistory.keys())
+            const oldestTimestamp = Math.min(...timestamps)
+            const lastKnownPrice = priceHistory.get(oldestTimestamp)
+            if (lastKnownPrice && lastKnownPrice > 0) {
+              atlasPriceForDate = lastKnownPrice
+            }
+          }
+        }
+      } catch (err) {
+        // Fallback to oldest available price or current price
+        const priceHistory = marketplaceStore.atlasPriceHistory
+        if (priceHistory.size > 0) {
+          const timestamps = Array.from(priceHistory.keys())
+          const oldestTimestamp = Math.min(...timestamps)
+          const lastKnownPrice = priceHistory.get(oldestTimestamp)
+          if (lastKnownPrice && lastKnownPrice > 0) {
+            atlasPriceForDate = lastKnownPrice
+          }
+        }
+      }
+    }
+    
+    let totalAtlas = totalInQuoteCurrency
+    if (pairMint === USDC_MINT && atlasPriceForDate > 0) {
+      totalAtlas = totalInQuoteCurrency / atlasPriceForDate
+    } else if (pairMint !== ATLAS_MINT) {
+      // Unknown pair, assume ATLAS
+      totalAtlas = totalInQuoteCurrency
+    }
+    
+    // Convert to USD using the same historical price
+    const totalUSD = totalAtlas * atlasPriceForDate
+    
+    return {
+      timestamp: formatDate(exchange.timestamp),
+      side: side,
+      pair: pairDisplay,
+      asset: assetDisplayName,
+      amount,
+      price,
+      fee,
+      totalAtlas,
+      totalUSD,
+      buyer,
+      buyerClass,
+      seller,
+      sellerClass,
+      instructionIndex: exchange.instructionIndex || 0
+    }
+  })
+})
 </script>
 
 <style scoped>
@@ -444,6 +647,32 @@ const tableData = computed(() => {
 .faction-oni {
   color: var(--color-faction-oni-bright);
   font-weight: 700;
+}
+
+.recent-trades-section {
+  margin-top: var(--spacing-xl);
+}
+
+.recent-trades-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.recent-trades-content {
+  margin-top: var(--spacing-lg);
+}
+
+.recent-trades-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .wallet-exchanges-section {

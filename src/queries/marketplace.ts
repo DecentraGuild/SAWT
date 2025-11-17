@@ -55,3 +55,30 @@ export const EXCHANGES_BY_TAKER_QUERY = gql`
     }
   }
 `
+
+export const RECENT_EXCHANGES_QUERY = gql`
+  query RecentExchanges($after: Cursor) {
+    allStarAtlasExchanges(
+      first: 1000
+      orderBy: TIMESTAMP_DESC
+      after: $after
+    ) {
+      nodes {
+        asset
+        amount
+        pair
+        price
+        side
+        fee
+        timestamp
+        orderInitializer
+        orderTaker
+        instructionIndex
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`

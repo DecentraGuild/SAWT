@@ -1,7 +1,8 @@
 import { graphqlClient } from './graphqlClient'
 import { 
   EXCHANGES_BY_INITIALIZER_QUERY, 
-  EXCHANGES_BY_TAKER_QUERY
+  EXCHANGES_BY_TAKER_QUERY,
+  RECENT_EXCHANGES_QUERY
 } from '../queries/marketplace'
 
 export interface ExchangeNode {
@@ -244,5 +245,63 @@ async function fetchExchangesWithPagination(
   }
   
   return filteredExchanges
+}
+
+/**
+ * Fetch recent exchanges (last 1000 trades) without wallet filter
+ * 
+ * @returns Array of recent exchanges sorted by timestamp descending
+ */
+export async function fetchRecentExchanges(): Promise<ExchangeNode[]> {
+  const allExchanges: ExchangeNode[] = []
+  let hasNextPage = true
+  let cursor: string | null = null
+  let pageCount = 0
+  const maxPages = 1 // Only fetch first page to get 1000 most recent
+  
+  while (hasNextPage && pageCount < maxPages) {
+    const variables: any = {}
+    
+    if (cursor) {
+      variables.after = cursor
+    }
+    
+    let result
+    try {
+      result = await graphqlClient.query({
+        query: RECENT_EXCHANGES_QUERY,
+        variables
+      })
+
+      if (result.errors && result.errors.length > 0) {
+        console.error('GraphQL Errors:', result.errors)
+        throw new Error(result.errors[0].message || 'Failed to fetch recent exchanges')
+      }
+    } catch (error: any) {
+      console.error('Error fetching recent exchanges:', error)
+      throw error
+    }
+
+    if (!result || !result.data) {
+      throw new Error('No data returned from GraphQL query')
+    }
+
+    const response = result.data as ExchangesResponse
+    const exchanges = response.allStarAtlasExchanges.nodes
+    
+    allExchanges.push(...exchanges)
+    
+    // Check pagination
+    hasNextPage = response.allStarAtlasExchanges.pageInfo.hasNextPage
+    cursor = response.allStarAtlasExchanges.pageInfo.endCursor
+    pageCount++
+  }
+  
+  // Sort all exchanges by timestamp descending (most recent first)
+  return allExchanges.sort((a, b) => {
+    const timeA = new Date(a.timestamp).getTime()
+    const timeB = new Date(b.timestamp).getTime()
+    return timeB - timeA
+  })
 }
 

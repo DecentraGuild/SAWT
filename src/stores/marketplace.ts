@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { fetchExchangesByWallet, type ExchangeNode } from '../services/marketplaceService'
+import { fetchExchangesByWallet, fetchRecentExchanges, type ExchangeNode } from '../services/marketplaceService'
 import { fetchAllNFTs, type StarAtlasNFT } from '../services/starAtlasGalaxyService'
 import { fetchTokenMarketData, fetchTokenMarketChart } from '../services/coingeckoService'
 
@@ -25,6 +25,11 @@ export const useMarketplaceStore = defineStore('marketplace', () => {
   const loading = ref<boolean>(false)
   const error = ref<string | null>(null)
   const lastFetchedWallet = ref<string>('')
+  
+  // Recent exchanges (when no wallet is entered)
+  const recentExchanges = ref<ExchangeNode[]>([])
+  const recentExchangesLoading = ref<boolean>(false)
+  const recentExchangesError = ref<string | null>(null)
   
   // Asset lookup data
   const starbaseCargos = ref<StarbaseCargo[]>([])
@@ -353,6 +358,61 @@ export const useMarketplaceStore = defineStore('marketplace', () => {
   }
 
   /**
+   * Fetch recent exchanges (last 1000 trades)
+   */
+  async function fetchRecentExchangesData() {
+    recentExchangesLoading.value = true
+    recentExchangesError.value = null
+
+    try {
+      const fetchedExchanges = await fetchRecentExchanges()
+      console.log('[Marketplace] Fetched recent exchanges:', fetchedExchanges.length)
+      recentExchanges.value = fetchedExchanges
+    } catch (err) {
+      recentExchangesError.value = err instanceof Error ? err.message : 'Failed to fetch recent exchanges'
+      recentExchanges.value = []
+    } finally {
+      recentExchangesLoading.value = false
+    }
+  }
+
+  /**
+   * Calculate 24hr volume from recent exchanges
+   */
+  const volume24hr = computed(() => {
+    const now = Date.now()
+    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000) // 24 hours in milliseconds
+    
+    return recentExchanges.value.reduce((sum, exchange) => {
+      const exchangeTimestamp = new Date(exchange.timestamp).getTime()
+      
+      // Only include exchanges from the last 24 hours
+      if (exchangeTimestamp >= twentyFourHoursAgo) {
+        return sum + getTransactionTotalAtlas(exchange)
+      }
+      return sum
+    }, 0)
+  })
+
+  /**
+   * Calculate 24hr volume in USD
+   */
+  const volume24hrUSD = computed(() => {
+    const now = Date.now()
+    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000) // 24 hours in milliseconds
+    
+    return recentExchanges.value.reduce((sum, exchange) => {
+      const exchangeTimestamp = new Date(exchange.timestamp).getTime()
+      
+      // Only include exchanges from the last 24 hours
+      if (exchangeTimestamp >= twentyFourHoursAgo) {
+        return sum + getTransactionTotalUSD(exchange)
+      }
+      return sum
+    }, 0)
+  })
+
+  /**
    * Load starbase cargos from JSON file
    */
   async function loadStarbaseCargos() {
@@ -505,6 +565,12 @@ export const useMarketplaceStore = defineStore('marketplace', () => {
     assetsLoading,
     fetchExchanges,
     clearExchanges,
+    recentExchanges,
+    recentExchangesLoading,
+    recentExchangesError,
+    volume24hr,
+    volume24hrUSD,
+    fetchRecentExchangesData,
     loadStarbaseCargos,
     loadNFTs,
     initializeAssets

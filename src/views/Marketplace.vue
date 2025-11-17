@@ -89,7 +89,14 @@
             :columns="tableColumns"
             :data="tableData"
             :show-summary="false"
-          />
+          >
+            <template #cell-buyer="{ value, row }">
+              <span :class="row.buyerClass">{{ value }}</span>
+            </template>
+            <template #cell-seller="{ value, row }">
+              <span :class="row.sellerClass">{{ value }}</span>
+            </template>
+          </DataTable>
         </div>
       </div>
 
@@ -109,12 +116,16 @@ import { computed, watch, ref, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useMarketplaceStore } from '../stores/marketplace'
 import { useWalletStore } from '../stores/wallet'
+import { usePlayerProfilesStore } from '../stores/playerProfiles'
 import DataTable, { type TableColumn } from '../components/DataTable.vue'
 import BaseMessage from '../components/BaseMessage.vue'
-import { formatDate, formatCurrency, formatWallet, formatUSD } from '../utils/formatters'
+import { formatDate, formatCurrency, formatUSD } from '../utils/formatters'
+import { useWalletDisplay } from '../composables/useWalletDisplay'
 
 const marketplaceStore = useMarketplaceStore()
 const walletStore = useWalletStore()
+const playerProfilesStore = usePlayerProfilesStore()
+const { getWalletDisplayName, getFactionClass } = useWalletDisplay()
 
 const exchanges = computed(() => marketplaceStore.exchanges)
 const loading = computed(() => marketplaceStore.loading)
@@ -141,6 +152,10 @@ const showWalletExchanges = ref(false)
 // Initialize asset lookup data on mount (load NFTs for ship and NFT lookups)
 onMounted(async () => {
   await marketplaceStore.initializeAssets(true) // Load NFTs for ship/NFT name resolution
+  // Fetch player profiles if not already loaded
+  if (playerProfilesStore.profiles.length === 0 && !playerProfilesStore.loading) {
+    await playerProfilesStore.fetchProfiles()
+  }
 })
 
 // Watch for wallet changes and automatically fetch exchanges (only on initial load or wallet change)
@@ -193,8 +208,8 @@ const tableColumns: TableColumn[] = [
   { key: 'fee', label: 'Fee', format: 'number' },
   { key: 'totalAtlas', label: 'Total (ATLAS)', format: 'currency' },
   { key: 'totalUSD', label: 'Total (USD)', format: 'currency-usd' },
-  { key: 'buyer', label: 'Buyer', format: 'text', class: 'hash-cell' },
-  { key: 'seller', label: 'Seller', format: 'text', class: 'hash-cell' },
+  { key: 'buyer', label: 'Buyer', format: 'text', class: 'hash-cell wallet-cell' },
+  { key: 'seller', label: 'Seller', format: 'text', class: 'hash-cell wallet-cell' },
   { key: 'instructionIndex', label: 'Instruction', format: 'number' }
 ]
 
@@ -227,29 +242,35 @@ const tableData = computed(() => {
     // If wallet is initializer, use side as-is (it's already from their perspective)
     
     // Determine buyer and seller based on the decoded side (from wallet's perspective)
-    let buyer = ''
-    let seller = ''
+    let buyerAddress = ''
+    let sellerAddress = ''
     if (decodedSide === 'BUY') {
       // Wallet is buying (decoded side is from wallet's perspective)
-      buyer = formatWallet(isWalletInitializer ? exchange.orderInitializer : exchange.orderTaker)
-      seller = formatWallet(isWalletInitializer ? exchange.orderTaker : exchange.orderInitializer)
+      buyerAddress = isWalletInitializer ? exchange.orderInitializer : exchange.orderTaker
+      sellerAddress = isWalletInitializer ? exchange.orderTaker : exchange.orderInitializer
     } else if (decodedSide === 'SELL') {
       // Wallet is selling (decoded side is from wallet's perspective)
-      seller = formatWallet(isWalletInitializer ? exchange.orderInitializer : exchange.orderTaker)
-      buyer = formatWallet(isWalletInitializer ? exchange.orderTaker : exchange.orderInitializer)
+      sellerAddress = isWalletInitializer ? exchange.orderInitializer : exchange.orderTaker
+      buyerAddress = isWalletInitializer ? exchange.orderTaker : exchange.orderInitializer
     } else {
       // Fallback: determine from original side (initializer's perspective)
       if (exchange.side === 'BUY') {
-        buyer = formatWallet(exchange.orderInitializer)
-        seller = formatWallet(exchange.orderTaker)
+        buyerAddress = exchange.orderInitializer
+        sellerAddress = exchange.orderTaker
       } else if (exchange.side === 'SELL') {
-        seller = formatWallet(exchange.orderInitializer)
-        buyer = formatWallet(exchange.orderTaker)
+        sellerAddress = exchange.orderInitializer
+        buyerAddress = exchange.orderTaker
       } else {
-        buyer = formatWallet(exchange.orderTaker)
-        seller = formatWallet(exchange.orderInitializer)
+        buyerAddress = exchange.orderTaker
+        sellerAddress = exchange.orderInitializer
       }
     }
+    
+    // Format buyer and seller with player profile names
+    const buyer = getWalletDisplayName(buyerAddress)
+    const seller = getWalletDisplayName(sellerAddress)
+    const buyerClass = getFactionClass(buyerAddress)
+    const sellerClass = getFactionClass(sellerAddress)
     
     // Calculate transaction total (price + fees) in ATLAS
     const amount = parseFloat(exchange.amount || '0')
@@ -320,7 +341,9 @@ const tableData = computed(() => {
       totalAtlas,
       totalUSD,
       buyer,
+      buyerClass,
       seller,
+      sellerClass,
       instructionIndex: exchange.instructionIndex || 0
     }
   })
@@ -401,6 +424,26 @@ const tableData = computed(() => {
 .hash-cell {
   font-family: monospace;
   font-size: var(--font-size-sm);
+}
+
+.wallet-cell {
+  font-family: inherit;
+}
+
+/* Faction color classes for wallet text */
+.faction-mud {
+  color: var(--color-faction-mud-bright);
+  font-weight: 700;
+}
+
+.faction-ustur {
+  color: var(--color-faction-ustur-bright);
+  font-weight: 700;
+}
+
+.faction-oni {
+  color: var(--color-faction-oni-bright);
+  font-weight: 700;
 }
 
 .wallet-exchanges-section {

@@ -650,7 +650,7 @@ const transfersTableData = computed(() => {
 }
 
 :deep(.wallet-highlight-faction-mud:hover) {
-  box-shadow: inset 3px 0 0 var(--color-faction-mud-bright), 0 0 12px rgba(255, 68, 68, 0.2);
+  box-shadow: inset 3px 0 0 var(--color-faction-mud-bright), 0 0 12px rgba(255, 68, 68, 0.3);
   background-color: rgba(255, 68, 68, 0.2);
 }
 

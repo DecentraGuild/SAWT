@@ -52,7 +52,7 @@
             <template #cell-wallet="{ value, row }">
               <div class="wallet-cell">
                 <span :class="getFactionClass(row.walletAddress)">
-                  {{ getUsername(row.walletAddress) || formatWallet(value) }}
+                  {{ getWalletDisplayName(row.walletAddress) }}
                 </span>
                 <BaseCopyButton
                   :text-to-copy="row.walletAddress"
@@ -109,7 +109,7 @@
             <template #cell-wallet="{ value, row }">
               <div class="wallet-cell">
                 <span :class="getFactionClass(row.walletAddress)">
-                  {{ getUsername(row.walletAddress) || formatWallet(value) }}
+                  {{ getWalletDisplayName(row.walletAddress) }}
                 </span>
                 <BaseCopyButton
                   :text-to-copy="row.walletAddress"
@@ -277,6 +277,29 @@ onMounted(async () => {
 function getUsername(wallet: string): string | null {
   if (!wallet) return null
   return playerProfilesStore.getUsername(wallet)
+}
+
+// Get wallet display name - checks guild wallet name, username, or formatted wallet
+function getWalletDisplayName(wallet: string): string {
+  if (!wallet) return 'Unknown'
+  // Check for guild wallet name first
+  const guildName = tokenWrapperStore.getGuildWalletName(wallet)
+  if (guildName) return guildName
+  // Check for username
+  const username = getUsername(wallet)
+  if (username) return username
+  // Fall back to formatted wallet address
+  return formatWallet(wallet)
+}
+
+// Get token display name - checks token name mapping or formatted mint address
+function getTokenDisplayName(tokenMint: string): string {
+  if (!tokenMint) return 'Unknown'
+  // Check for token name first
+  const tokenName = tokenWrapperStore.getTokenName(tokenMint)
+  if (tokenName) return tokenName
+  // Fall back to formatted mint address
+  return formatWallet(tokenMint)
 }
 
 // Get faction for a wallet
@@ -447,11 +470,11 @@ const mintsTableData = computed(() => {
     
     return {
       timestamp: formatDate(mint.timestamp),
-      mint: formatWallet(mint.mint),
+      mint: getTokenDisplayName(mint.mint),
       amount: parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR,
       account: formatWallet(mint.account),
       owner: owner, // Store full address for highlighting
-      ownerDisplay: getUsername(owner) || formatWallet(owner),
+      ownerDisplay: getWalletDisplayName(owner),
       ownerDisplayClass: getFactionClass(owner),
       instruction: formatWallet(mint.byInstruction)
     }
@@ -469,7 +492,7 @@ const burnsTableData = computed(() => {
       amount: parseFloat(burn.amountRaw || '0') / DECIMAL_DIVISOR,
       account: formatWallet(burn.account),
       owner: owner, // Store full address for highlighting
-      ownerDisplay: getUsername(owner) || formatWallet(owner),
+      ownerDisplay: getWalletDisplayName(owner),
       ownerDisplayClass: getFactionClass(owner),
       instruction: formatWallet(burn.byInstruction)
     }
@@ -485,13 +508,13 @@ const transfersTableData = computed(() => {
     
     return {
       timestamp: formatDate(transfer.timestamp),
-      mint: formatWallet(transfer.mint),
+      mint: getTokenDisplayName(transfer.mint),
       amount: parseFloat(transfer.amountRaw || '0') / DECIMAL_DIVISOR,
       fromAccount: fromOwner, // Store full address for highlighting
-      fromAccountDisplay: getUsername(fromOwner) || formatWallet(fromOwner),
+      fromAccountDisplay: getWalletDisplayName(fromOwner),
       fromAccountDisplayClass: getFactionClass(fromOwner),
       toAccount: toOwner, // Store full address for highlighting
-      toAccountDisplay: getUsername(toOwner) || formatWallet(toOwner),
+      toAccountDisplay: getWalletDisplayName(toOwner),
       toAccountDisplayClass: getFactionClass(toOwner),
       instruction: formatWallet(transfer.byInstruction)
     }

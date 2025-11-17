@@ -10,11 +10,61 @@ export { DAC_BLOONS_MINT, DAO_BLOONS_MINT, POLIS_MINT, ATLAS_MINT }
 const TOKEN_DECIMALS = 8
 const DECIMAL_DIVISOR = Math.pow(10, TOKEN_DECIMALS)
 
-// Guild wallet addresses to exclude from DACB leaderboard
-// TODO: Update this list with actual guild wallet addresses
-const GUILD_WALLETS = new Set<string>([
-  // Add guild wallet addresses here (lowercase for case-insensitive matching)
+// Guild wallet addresses to exclude from DACB and DAOB leaderboards
+// Note: Addresses are stored as-is for readability, but comparison is case-insensitive
+// Map structure: [walletAddress, displayName]
+const GUILD_WALLETS_MAP = new Map<string, string>([
+  ['HmAwHhCw3aPEYmx2dgfoQUWJ2y1LFqTdyMQPYebo9TeE', 'Dockyard'],
+  ['756pfnvP3HHRx1BPwBPQwe1xBMfMWef5N9oN61Ews7np', 'Guild Wallet'],
+  ['UHXr4VPBEejmKNfkTH9k4Z33GJPXGWgXWv14S8LHKKM', 'DAOB Wallet'],
+  ['4vXSxn9QFUDYKKy9EcDn6B57e8ajM9dqpYoL7z4gNRqq', 'DACB Wallet'],
+  ['GMtvP4jfaVXXAY1mAm1vTiXMWexqmbVmWKB55xFtWqTw', 'CUT Wallet'],
+  ['DHUn3QfqvKZAHfsEMxmHiYxNheYaU4NKKyZXcdGQ5EgD', 'S&B Treasury']
 ])
+
+// Helper function to check if a wallet is a guild wallet (case-insensitive)
+function isGuildWallet(wallet: string | null | undefined): boolean {
+  if (!wallet) return false
+  const normalizedWallet = wallet.trim().toLowerCase()
+  // Check against all wallets in the map (convert each to lowercase for comparison)
+  return Array.from(GUILD_WALLETS_MAP.keys()).some(guildWallet => 
+    guildWallet.toLowerCase() === normalizedWallet
+  )
+}
+
+// Helper function to get the display name for a guild wallet (case-insensitive)
+function getGuildWalletName(wallet: string | null | undefined): string | null {
+  if (!wallet) return null
+  const normalizedWallet = wallet.trim().toLowerCase()
+  for (const [guildWallet, name] of GUILD_WALLETS_MAP.entries()) {
+    if (guildWallet.toLowerCase() === normalizedWallet) {
+      return name
+    }
+  }
+  return null
+}
+
+// Token mint addresses to display names mapping
+// Map structure: [tokenMintAddress, displayName]
+const TOKEN_NAMES_MAP = new Map<string, string>([
+  [DAC_BLOONS_MINT, 'DACB'],
+  [DAO_BLOONS_MINT, 'DAOB'],
+  [POLIS_MINT, 'POLIS'],
+  [ATLAS_MINT, 'ATLAS'],
+  ['EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'USDC'] // USDC mint address
+])
+
+// Helper function to get the display name for a token (case-insensitive)
+function getTokenName(tokenMint: string | null | undefined): string | null {
+  if (!tokenMint) return null
+  const normalizedMint = tokenMint.trim().toLowerCase()
+  for (const [mint, name] of TOKEN_NAMES_MAP.entries()) {
+    if (mint.toLowerCase() === normalizedMint) {
+      return name
+    }
+  }
+  return null
+}
 
 export interface WalletStats {
   wallet: string
@@ -206,9 +256,9 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     filteredTransfers.forEach(transfer => {
       const amount = parseFloat(transfer.amountRaw || '0') / DECIMAL_DIVISOR
       
-      // Track transfers TO wallets (receiving DACB)
+      // Track transfers TO wallets (receiving DACB) - exclude guild wallets
       const toOwner = transfer.solanaAccountByToAccount?.owner || transfer.toAccount
-      if (toOwner && !GUILD_WALLETS.has(toOwner.toLowerCase())) {
+      if (toOwner && !isGuildWallet(toOwner)) {
         const existing = walletTransferMap.get(toOwner) || { totalTransferred: 0, transferCount: 0 }
         walletTransferMap.set(toOwner, {
           totalTransferred: existing.totalTransferred + amount,
@@ -226,12 +276,15 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
       }))
       .sort((a, b) => b.totalTransferred - a.totalTransferred)
 
-    // Calculate total holdings (sum of all transfers)
-    const totalHoldings = transferStats.reduce((sum, stat) => sum + stat.totalTransferred, 0)
+    // Filter out guild wallets before calculating totals and creating stats
+    const filteredStats = transferStats.filter((stat) => !isGuildWallet(stat.wallet))
+
+    // Calculate total holdings (sum of all transfers, excluding guild wallets)
+    const totalHoldings = filteredStats.reduce((sum, stat) => sum + stat.totalTransferred, 0)
 
     return {
       totalHoldings,
-      walletStats: transferStats.map((stat) => ({
+      walletStats: filteredStats.map((stat) => ({
         wallet: stat.wallet,
         currentHoldings: stat.totalTransferred,
         costBasis: 0, // Not calculated for DACB
@@ -288,7 +341,7 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     // Process mints - calculate cost basis using wrap ratio at time of mint
     filteredMints.forEach(mint => {
       const owner = mint.solanaAccountByAccount?.owner
-      if (owner) {
+      if (owner && !isGuildWallet(owner)) {
         const mintAmount = parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR
         const existing = walletHoldingsMap.get(owner) || 0
         walletHoldingsMap.set(owner, existing + mintAmount)
@@ -319,25 +372,25 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     filteredTransfers.forEach(transfer => {
       const amount = parseFloat(transfer.amountRaw || '0') / DECIMAL_DIVISOR
       
-      // Add to recipient (transfer in)
+      // Add to recipient (transfer in) - exclude guild wallets
       const toOwner = transfer.solanaAccountByToAccount?.owner || transfer.toAccount
-      if (toOwner) {
+      if (toOwner && !isGuildWallet(toOwner)) {
         const existing = walletHoldingsMap.get(toOwner) || 0
         walletHoldingsMap.set(toOwner, existing + amount)
       }
       
-      // Subtract from sender (transfer out)
+      // Subtract from sender (transfer out) - exclude guild wallets
       const fromOwner = transfer.solanaAccountByFromAccount?.owner || transfer.fromAccount
-      if (fromOwner) {
+      if (fromOwner && !isGuildWallet(fromOwner)) {
         const existing = walletHoldingsMap.get(fromOwner) || 0
         walletHoldingsMap.set(fromOwner, existing - amount)
       }
     })
 
-    // Process burns
+    // Process burns - exclude guild wallets
     filteredBurns.forEach(burn => {
       const owner = burn.solanaAccountByAccount?.owner
-      if (owner) {
+      if (owner && !isGuildWallet(owner)) {
         const amount = parseFloat(burn.amountRaw || '0') / DECIMAL_DIVISOR
         const existing = walletHoldingsMap.get(owner) || 0
         walletHoldingsMap.set(owner, existing - amount)
@@ -347,8 +400,9 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     // Get latest wrap ratio for current value calculation
     const latestWrapRatio = wrapRatios.length > 0 ? wrapRatios[wrapRatios.length - 1] : null
 
-    // Convert to array and calculate returns
+    // Convert to array and calculate returns - filter out guild wallets
     const walletStats: WalletStats[] = Array.from(walletHoldingsMap.entries())
+      .filter(([wallet]) => !isGuildWallet(wallet))
       .map(([wallet, holdings]) => {
         const costBasis = walletCostBasisMap.get(wallet) || 0
         
@@ -457,7 +511,9 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     dacbWrapRatios,
     endDate,
     fetchData,
-    setDateRange
+    setDateRange,
+    getGuildWalletName,
+    getTokenName
   }
 })
 

@@ -82,6 +82,7 @@
 import { ref, watch, computed, onMounted } from 'vue'
 import { useWalletStore } from '../stores/wallet'
 import { usePlayerProfilesStore } from '../stores/playerProfiles'
+import { useWalletDisplay } from '../composables/useWalletDisplay'
 import DateRangePicker from './DateRangePicker.vue'
 import BaseCopyButton from './BaseCopyButton.vue'
 import { formatDate } from '../utils/formatters'
@@ -129,25 +130,18 @@ const profile = computed(() => {
   return playerProfilesStore.getProfileByWallet(address)
 })
 
+const { getFactionClass, getFactionLogo } = useWalletDisplay()
+
 // Get faction class for styling
 const factionClass = computed(() => {
-  if (!profile.value?.faction) return ''
-  const faction = profile.value.faction.toUpperCase()
-  if (faction === 'MUD') return 'faction-mud'
-  if (faction === 'USTUR') return 'faction-ustur'
-  if (faction === 'ONI') return 'faction-oni'
-  return ''
+  if (!walletStore.address) return ''
+  return getFactionClass(walletStore.address)
 })
 
-// Get faction logo path - using raw GitHub URLs for reliable GitHub Pages deployment
+// Get faction logo path
 const factionLogo = computed(() => {
-  if (!profile.value?.faction) return undefined
-  const faction = profile.value.faction.toUpperCase()
-  const baseUrl = 'https://raw.githubusercontent.com/DecentraGuild/SAWT/main/public'
-  if (faction === 'MUD') return `${baseUrl}/MUD.svg`
-  if (faction === 'USTUR') return `${baseUrl}/Ustur.svg`
-  if (faction === 'ONI') return `${baseUrl}/ONI.svg`
-  return undefined
+  if (!walletStore.address) return undefined
+  return getFactionLogo(walletStore.address)
 })
 
 // Format last active date

@@ -287,6 +287,7 @@ import { formatVotingPower, formatVoteResult, formatVoteResultFull, formatWallet
 import { useWalletStore } from '../stores/wallet'
 import { useVotesStore } from '../stores/votes'
 import { usePlayerProfilesStore } from '../stores/playerProfiles'
+import { useWalletDisplay } from '../composables/useWalletDisplay'
 import type { VoteNode } from '../services/votesService'
 import BaseCopyButton from './BaseCopyButton.vue'
 
@@ -302,45 +303,12 @@ const walletStore = useWalletStore()
 const votesStore = useVotesStore()
 const playerProfilesStore = usePlayerProfilesStore()
 
-// Get username for a wallet
-function getUsername(wallet: string): string | null {
-  return playerProfilesStore.getUsername(wallet)
-}
-
-// Get faction for a wallet
-function getFaction(wallet: string): string | null {
-  return playerProfilesStore.getFaction(wallet)
-}
-
-// Get faction class for styling
-function getFactionClass(wallet: string): string {
-  const faction = getFaction(wallet)
-  if (!faction) return ''
-  if (faction === 'MUD') return 'faction-mud'
-  if (faction === 'USTUR') return 'faction-ustur'
-  if (faction === 'ONI') return 'faction-oni'
-  return ''
-}
-
-// Get faction logo path - using raw GitHub URLs for reliable GitHub Pages deployment
-function getFactionLogo(wallet: string): string | undefined {
-  const faction = getFaction(wallet)
-  if (!faction) return undefined
-  const baseUrl = 'https://raw.githubusercontent.com/DecentraGuild/SAWT/main/public'
-  if (faction === 'MUD') return `${baseUrl}/MUD.svg`
-  if (faction === 'USTUR') return `${baseUrl}/Ustur.svg`
-  if (faction === 'ONI') return `${baseUrl}/ONI.svg`
-  return undefined
-}
+const { getFaction, getFactionClass, getFactionLogo, getWalletHighlightClass, getUsername } = useWalletDisplay()
 
 // Get highlight class for current wallet based on faction
 function getHighlightClass(wallet: string): string {
   if (!isCurrentWallet(wallet)) return ''
-  const faction = getFaction(wallet)
-  if (faction === 'MUD') return 'wallet-highlight-faction-mud'
-  if (faction === 'USTUR') return 'wallet-highlight-faction-ustur'
-  if (faction === 'ONI') return 'wallet-highlight-faction-oni'
-  return 'wallet-highlight-default'
+  return getWalletHighlightClass(wallet)
 }
 
 const emit = defineEmits<{

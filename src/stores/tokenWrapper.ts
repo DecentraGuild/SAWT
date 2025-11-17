@@ -1,14 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { fetchDACBWrapperData, fetchDAOBWrapperData, type TokenMint, type TokenBurn, type TokenTransfer } from '../services/tokenWrapperService'
+import { fetchDACBWrapperData, fetchDAOBWrapperData, fetchWrapperData, fetchDACBMultisigData, type TokenMint, type TokenBurn, type TokenTransfer, type WrapperMint, type WrapperTransfer } from '../services/tokenWrapperService'
 import { DAC_BLOONS_MINT, DAO_BLOONS_MINT, POLIS_MINT, ATLAS_MINT } from '../queries/tokenWrapper'
+import { DECIMAL_DIVISOR } from '../utils/constants'
+import { filterByEndDate } from '../utils/dateFilters'
 
 // Re-export for convenience
 export { DAC_BLOONS_MINT, DAO_BLOONS_MINT, POLIS_MINT, ATLAS_MINT }
-
-// Constants
-const TOKEN_DECIMALS = 8
-const DECIMAL_DIVISOR = Math.pow(10, TOKEN_DECIMALS)
 
 // Guild wallet addresses to exclude from DACB and DAOB leaderboards
 // Note: Addresses are stored as-is for readability, but comparison is case-insensitive
@@ -103,6 +101,13 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
   const daobTransfers = ref<TokenTransfer[]>([])
   const daobPolisTransfers = ref<TokenTransfer[]>([])
   
+  // Wrapper deposits (POLIS and ATLAS deposits by wrapper program)
+  const wrapperMints = ref<WrapperMint[]>([])
+  const wrapperTransfers = ref<WrapperTransfer[]>([])
+  
+  // DACB multisig deposits (ATLAS deposits by multisig program for DACB mints)
+  const dacbMultisigTransfers = ref<WrapperTransfer[]>([])
+  
   const loading = ref<boolean>(false)
   const error = ref<string | null>(null)
 
@@ -110,12 +115,16 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
   const endDate = ref<string>('')
 
   // Calculate wrap ratios - returns array of all ratios
+  // For DAOB: use wrapper POLIS deposits mapped by signature
+  // For DACB: use fixed ratio (1 DACB = 100 ATLAS) or wrapper ATLAS deposits
   const daobWrapRatios = computed(() => {
-    return calculateAllWrapRatios(daobMints.value, daobPolisTransfers.value, POLIS_MINT, DAO_BLOONS_MINT)
+    return calculateDAOBWrapRatios(daobMints.value, wrapperTransfers.value)
   })
 
   const dacbWrapRatios = computed(() => {
-    return calculateAllWrapRatios(dacbMints.value, dacbAtlasTransfers.value, ATLAS_MINT, DAC_BLOONS_MINT)
+    // DACB ratio is fixed: 1 DACB = 100 ATLAS
+    // But we can still calculate ratios from wrapper deposits for historical tracking
+    return calculateDACBWrapRatios(dacbMints.value, wrapperTransfers.value)
   })
 
   // Latest wrap ratios for display
@@ -145,110 +154,154 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     )
   })
 
-  // Calculate all wrap ratios from all mints (not just latest)
-  function calculateAllWrapRatios(
-    outputMints: TokenMint[],
-    inputTransfers: TokenTransfer[],
-    inputMint: string,
-    outputMint: string
+  // Calculate DAOB wrap ratios using wrapper POLIS deposits mapped by signature
+  function calculateDAOBWrapRatios(
+    daobMints: TokenMint[],
+    wrapperTransfers: WrapperTransfer[]
   ): WrapRatio[] {
-    if (inputTransfers.length === 0 || outputMints.length === 0) {
+    if (daobMints.length === 0 || wrapperTransfers.length === 0) {
       return []
     }
 
-    // Create a map of mints by signature for fast lookup
+    // Filter wrapper transfers to get POLIS deposits
+    const polisDeposits = wrapperTransfers.filter(
+      transfer => transfer.mint.toLowerCase() === POLIS_MINT.toLowerCase()
+    )
+
+    if (polisDeposits.length === 0) {
+      return []
+    }
+
+    // Create a map of DAOB mints by signature for fast lookup
     const mintsBySignature = new Map<string, TokenMint>()
-    const mintsByKey = new Map<string, TokenMint[]>()
-    
-    outputMints.forEach(mint => {
+    daobMints.forEach(mint => {
       if (mint.signature) {
         mintsBySignature.set(mint.signature, mint)
       }
-      // Also index by instruction+instructionIdx+timestamp for fallback
-      const key = `${mint.instruction || mint.byInstruction}_${mint.instructionIdx || ''}_${mint.timestamp}`
-      if (!mintsByKey.has(key)) {
-        mintsByKey.set(key, [])
-      }
-      mintsByKey.get(key)!.push(mint)
     })
-    
-    // Find all matching wrap transactions
-    const wrapTransactions: Array<{ transfer: TokenTransfer; mint: TokenMint; timestamp: number }> = []
-    
-    for (const transfer of inputTransfers) {
-      let matchingMint: TokenMint | undefined
-      
-      // Try signature match first (fastest)
-      if (transfer.signature) {
-        matchingMint = mintsBySignature.get(transfer.signature)
-      }
-      
-      // Fallback to instruction+instructionIdx+timestamp match
-      if (!matchingMint) {
-        const key = `${transfer.instruction || transfer.byInstruction}_${transfer.instructionIdx || ''}_${transfer.timestamp}`
-        const matchingMints = mintsByKey.get(key)
-        if (matchingMints && matchingMints.length > 0) {
-          matchingMint = matchingMints.find(m => 
-            (m.instruction || m.byInstruction) === (transfer.instruction || transfer.byInstruction) &&
-            (m.instructionIdx || 0) === (transfer.instructionIdx || 0) &&
-            m.timestamp === transfer.timestamp
-          )
-        }
-      }
-      
+
+    // Find all matching wrap transactions by signature
+    const wrapTransactions: Array<{ deposit: WrapperTransfer; mint: TokenMint; timestamp: number }> = []
+
+    for (const deposit of polisDeposits) {
+      if (!deposit.signature) continue
+
+      const matchingMint = mintsBySignature.get(deposit.signature)
       if (matchingMint) {
-        const txTimestamp = new Date(transfer.timestamp).getTime()
-        wrapTransactions.push({ transfer, mint: matchingMint, timestamp: txTimestamp })
+        const txTimestamp = new Date(deposit.timestamp).getTime()
+        wrapTransactions.push({ deposit, mint: matchingMint, timestamp: txTimestamp })
       }
     }
-    
+
     // Sort by timestamp and calculate ratios
     wrapTransactions.sort((a, b) => a.timestamp - b.timestamp)
-    
+
     const ratios: WrapRatio[] = []
-    
-    for (const { transfer, mint } of wrapTransactions) {
-      const inputAmount = parseFloat(transfer.amountRaw || '0') / DECIMAL_DIVISOR
+
+    for (const { deposit, mint } of wrapTransactions) {
+      const inputAmount = parseFloat(deposit.amountRaw || '0') / DECIMAL_DIVISOR
       const outputAmount = parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR
-      
+
       if (outputAmount === 0) {
         continue
       }
-      
+
       const ratio = inputAmount / outputAmount
-      
+
       const wrapRatio: WrapRatio = {
-        inputToken: inputMint === POLIS_MINT ? 'POLIS' : 'ATLAS',
-        outputToken: outputMint === DAO_BLOONS_MINT ? 'DAOB' : 'DACB',
+        inputToken: 'POLIS',
+        outputToken: 'DAOB',
         ratio,
-        timestamp: transfer.timestamp
+        timestamp: deposit.timestamp
       }
-      
-      if (transfer.signature) {
-        wrapRatio.signature = transfer.signature
+
+      if (deposit.signature) {
+        wrapRatio.signature = deposit.signature
       }
-      
+
       ratios.push(wrapRatio)
     }
-    
+
+    return ratios
+  }
+
+  // Calculate DACB wrap ratios using wrapper ATLAS deposits mapped by signature
+  // Note: DACB ratio is fixed at 1 DACB = 100 ATLAS, but we calculate from deposits for historical tracking
+  function calculateDACBWrapRatios(
+    dacbMints: TokenMint[],
+    wrapperTransfers: WrapperTransfer[]
+  ): WrapRatio[] {
+    if (dacbMints.length === 0 || wrapperTransfers.length === 0) {
+      return []
+    }
+
+    // Filter wrapper transfers to get ATLAS deposits
+    const atlasDeposits = wrapperTransfers.filter(
+      transfer => transfer.mint.toLowerCase() === ATLAS_MINT.toLowerCase()
+    )
+
+    if (atlasDeposits.length === 0) {
+      return []
+    }
+
+    // Create a map of DACB mints by signature for fast lookup
+    const mintsBySignature = new Map<string, TokenMint>()
+    dacbMints.forEach(mint => {
+      if (mint.signature) {
+        mintsBySignature.set(mint.signature, mint)
+      }
+    })
+
+    // Find all matching wrap transactions by signature
+    const wrapTransactions: Array<{ deposit: WrapperTransfer; mint: TokenMint; timestamp: number }> = []
+
+    for (const deposit of atlasDeposits) {
+      if (!deposit.signature) continue
+
+      const matchingMint = mintsBySignature.get(deposit.signature)
+      if (matchingMint) {
+        const txTimestamp = new Date(deposit.timestamp).getTime()
+        wrapTransactions.push({ deposit, mint: matchingMint, timestamp: txTimestamp })
+      }
+    }
+
+    // Sort by timestamp and calculate ratios
+    wrapTransactions.sort((a, b) => a.timestamp - b.timestamp)
+
+    const ratios: WrapRatio[] = []
+
+    for (const { deposit, mint } of wrapTransactions) {
+      const inputAmount = parseFloat(deposit.amountRaw || '0') / DECIMAL_DIVISOR
+      const outputAmount = parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR
+
+      if (outputAmount === 0) {
+        continue
+      }
+
+      // Calculate ratio (should be around 100 for DACB, but we calculate from actual data)
+      const ratio = inputAmount / outputAmount
+
+      const wrapRatio: WrapRatio = {
+        inputToken: 'ATLAS',
+        outputToken: 'DACB',
+        ratio,
+        timestamp: deposit.timestamp
+      }
+
+      if (deposit.signature) {
+        wrapRatio.signature = deposit.signature
+      }
+
+      ratios.push(wrapRatio)
+    }
+
     return ratios
   }
 
   // Calculate DACB transfer-based leaderboard (excluding guild wallets)
   function calculateDACBTransferStats(tokenTransfers: TokenTransfer[]) {
-    // Parse endDate for filtering
-    const endDateTimestamp = endDate.value && endDate.value.trim() 
-      ? new Date(endDate.value.trim()).getTime() 
-      : null
-    
     // Filter transfers by date range
-    const filteredTransfers = tokenTransfers.filter(t => {
-      if (endDateTimestamp && t.timestamp) {
-        const txDate = new Date(t.timestamp).getTime()
-        return txDate <= endDateTimestamp
-      }
-      return true
-    })
+    const filteredTransfers = filterByEndDate(tokenTransfers, endDate.value)
 
     // Calculate per-wallet transfer stats
     const walletTransferMap = new Map<string, { totalTransferred: number; transferCount: number }>()
@@ -296,7 +349,7 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     }
   }
 
-  // Calculate DAOB stats using wrap ratios for accurate cost basis
+  // Calculate DAOB stats using wrapper deposits mapped by signature for accurate cost basis
   function calculateDAOBStats(
     tokenMints: TokenMint[],
     tokenBurns: TokenBurn[],
@@ -304,41 +357,26 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     _inputTokenTransfers: TokenTransfer[],
     wrapRatios: WrapRatio[]
   ) {
-    // Parse endDate for filtering
-    const endDateTimestamp = endDate.value && endDate.value.trim() 
-      ? new Date(endDate.value.trim()).getTime() 
-      : null
-    
+    // Create a map of POLIS deposits by signature from wrapper transfers
+    const polisDepositsBySignature = new Map<string, WrapperTransfer>()
+    const polisDeposits = wrapperTransfers.value.filter(
+      transfer => transfer.mint.toLowerCase() === POLIS_MINT.toLowerCase()
+    )
+    polisDeposits.forEach(deposit => {
+      if (deposit.signature) {
+        polisDepositsBySignature.set(deposit.signature, deposit)
+      }
+    })
     // Filter transactions by date range
-    const filteredMints = tokenMints.filter(m => {
-      if (endDateTimestamp && m.timestamp) {
-        const txDate = new Date(m.timestamp).getTime()
-        return txDate <= endDateTimestamp
-      }
-      return true
-    })
-    
-    const filteredBurns = tokenBurns.filter(b => {
-      if (endDateTimestamp && b.timestamp) {
-        const txDate = new Date(b.timestamp).getTime()
-        return txDate <= endDateTimestamp
-      }
-      return true
-    })
-    
-    const filteredTransfers = tokenTransfers.filter(t => {
-      if (endDateTimestamp && t.timestamp) {
-        const txDate = new Date(t.timestamp).getTime()
-        return txDate <= endDateTimestamp
-      }
-      return true
-    })
+    const filteredMints = filterByEndDate(tokenMints, endDate.value)
+    const filteredBurns = filterByEndDate(tokenBurns, endDate.value)
+    const filteredTransfers = filterByEndDate(tokenTransfers, endDate.value)
 
     // Calculate per-wallet holdings and cost basis
     const walletHoldingsMap = new Map<string, number>()
     const walletCostBasisMap = new Map<string, number>() // Track POLIS paid
 
-    // Process mints - calculate cost basis using wrap ratio at time of mint
+    // Process mints - calculate cost basis using wrapper POLIS deposits mapped by signature
     filteredMints.forEach(mint => {
       const owner = mint.solanaAccountByAccount?.owner
       if (owner && !isGuildWallet(owner)) {
@@ -346,22 +384,37 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
         const existing = walletHoldingsMap.get(owner) || 0
         walletHoldingsMap.set(owner, existing + mintAmount)
         
-        // Find the wrap ratio that was active at the time of this mint
-        const mintTimestamp = new Date(mint.timestamp).getTime()
-        // Find the most recent ratio before or at the mint time
-        let activeRatio: WrapRatio | null = null
-        for (const ratio of wrapRatios) {
-          const ratioTimestamp = new Date(ratio.timestamp).getTime()
-          if (ratioTimestamp <= mintTimestamp) {
-            if (!activeRatio || ratioTimestamp > new Date(activeRatio.timestamp).getTime()) {
-              activeRatio = ratio
-            }
+        // Try to find the actual POLIS deposit for this mint by signature
+        let polisPaid = 0
+        if (mint.signature) {
+          const polisDeposit = polisDepositsBySignature.get(mint.signature)
+          if (polisDeposit) {
+            // Use the actual POLIS deposit amount
+            polisPaid = parseFloat(polisDeposit.amountRaw || '0') / DECIMAL_DIVISOR
           }
         }
         
-        // If we found a ratio, calculate cost basis (POLIS paid = DAOB minted * ratio)
-        if (activeRatio && activeRatio.ratio > 0) {
-          const polisPaid = mintAmount * activeRatio.ratio
+        // Fallback to wrap ratio if we couldn't find the deposit by signature
+        if (polisPaid === 0) {
+          const mintTimestamp = new Date(mint.timestamp).getTime()
+          // Find the most recent ratio before or at the mint time
+          let activeRatio: WrapRatio | null = null
+          for (const ratio of wrapRatios) {
+            const ratioTimestamp = new Date(ratio.timestamp).getTime()
+            if (ratioTimestamp <= mintTimestamp) {
+              if (!activeRatio || ratioTimestamp > new Date(activeRatio.timestamp).getTime()) {
+                activeRatio = ratio
+              }
+            }
+          }
+          
+          // If we found a ratio, calculate cost basis (POLIS paid = DAOB minted * ratio)
+          if (activeRatio && activeRatio.ratio > 0) {
+            polisPaid = mintAmount * activeRatio.ratio
+          }
+        }
+        
+        if (polisPaid > 0) {
           const existingCost = walletCostBasisMap.get(owner) || 0
           walletCostBasisMap.set(owner, existingCost + polisPaid)
         }
@@ -449,10 +502,12 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     error.value = null
 
     try {
-      // Fetch DACB and DAOB data in parallel for better performance
-      const [dacbResponse, daobResponse] = await Promise.all([
+      // Fetch DACB, DAOB, wrapper, and DACB multisig data in parallel for better performance
+      const [dacbResponse, daobResponse, wrapperResponse, dacbMultisigResponse] = await Promise.all([
         fetchDACBWrapperData(),
-        fetchDAOBWrapperData()
+        fetchDAOBWrapperData(),
+        fetchWrapperData(),
+        fetchDACBMultisigData()
       ])
       
       // Process DACB data
@@ -466,6 +521,13 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
       daobBurns.value = daobResponse.allSolanaTokenBurns.nodes
       daobTransfers.value = daobResponse.allSolanaTokenTransfers.nodes
       daobPolisTransfers.value = daobResponse.polisTransfers?.nodes || []
+      
+      // Process wrapper data (POLIS and ATLAS deposits)
+      wrapperMints.value = wrapperResponse.allSolanaTokenMints.nodes
+      wrapperTransfers.value = wrapperResponse.allSolanaTokenTransfers.nodes
+      
+      // Process DACB multisig data (ATLAS deposits for DACB mints)
+      dacbMultisigTransfers.value = dacbMultisigResponse.allSolanaTokenTransfers.nodes
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch token wrapper data'
       // Reset all data on error
@@ -477,6 +539,9 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
       daobBurns.value = []
       daobTransfers.value = []
       daobPolisTransfers.value = []
+      wrapperMints.value = []
+      wrapperTransfers.value = []
+      dacbMultisigTransfers.value = []
     } finally {
       loading.value = false
     }
@@ -486,6 +551,243 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
   const allMints = computed(() => [...dacbMints.value, ...daobMints.value])
   const allBurns = computed(() => [...dacbBurns.value, ...daobBurns.value])
   const allTransfers = computed(() => [...dacbTransfers.value, ...daobTransfers.value])
+
+  // Combined all transactions sorted by timestamp desc, grouped by signature
+  const allTransactions = computed(() => {
+    // Create maps for fast lookup by signature
+    const mintsBySignature = new Map<string, TokenMint>()
+    const burnsBySignature = new Map<string, TokenBurn>()
+    const transfersBySignature = new Map<string, TokenTransfer>()
+    const depositsBySignature = new Map<string, WrapperTransfer>()
+
+    // Index mints by signature
+    allMints.value.forEach(mint => {
+      if (mint.signature) {
+        mintsBySignature.set(mint.signature.toLowerCase(), mint)
+      }
+    })
+
+    // Index burns by signature (burns have signature in query results, even if not in type)
+    allBurns.value.forEach(burn => {
+      const sig = (burn as any).signature
+      if (sig) {
+        burnsBySignature.set(sig.toLowerCase(), burn)
+      }
+    })
+
+    // Index transfers by signature
+    allTransfers.value.forEach(transfer => {
+      if (transfer.signature) {
+        transfersBySignature.set(transfer.signature.toLowerCase(), transfer)
+      }
+    })
+
+    // Index wrapper transfers (deposits) by signature
+    wrapperTransfers.value.forEach(deposit => {
+      if (deposit.signature) {
+        depositsBySignature.set(deposit.signature.toLowerCase(), deposit)
+      }
+    })
+
+    // Match DACB mints with multisig deposits by timestamp proximity and amount ratio (1 DACB = 100 ATLAS)
+    // Since multisig deposits may have different signatures, we match by timestamp and ratio
+    const matchedDacbMints = new Set<string>() // Track which mints have been matched
+    const matchedDacbDeposits = new Set<string>() // Track which deposits have been matched
+    
+    // First, try to match by signature (if they happen to share one)
+    dacbMultisigTransfers.value.forEach(deposit => {
+      if (deposit.signature) {
+        const sig = deposit.signature.toLowerCase()
+        const mint = mintsBySignature.get(sig)
+        if (mint && mint.mint.toLowerCase() === DAC_BLOONS_MINT.toLowerCase()) {
+          depositsBySignature.set(sig, deposit)
+          matchedDacbMints.add(sig)
+          matchedDacbDeposits.add(sig)
+        }
+      }
+    })
+
+    // Then match remaining DACB mints with multisig deposits by timestamp/amount
+    allMints.value.forEach(mint => {
+      if (mint.mint.toLowerCase() !== DAC_BLOONS_MINT.toLowerCase()) return
+      if (!mint.signature) return
+      
+      const mintSig = mint.signature.toLowerCase()
+      if (matchedDacbMints.has(mintSig)) return // Already matched
+      
+      const mintTimestamp = new Date(mint.timestamp).getTime()
+      const mintAmount = parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR
+      const expectedDepositAmount = mintAmount * 100 // 1 DACB = 100 ATLAS
+      
+      // Find matching deposit within 10 seconds with correct ratio
+      for (const deposit of dacbMultisigTransfers.value) {
+        const depositSig = deposit.signature?.toLowerCase() || ''
+        if (matchedDacbDeposits.has(depositSig)) continue // Already matched
+        
+        const depositTimestamp = new Date(deposit.timestamp).getTime()
+        const timeDiff = Math.abs(mintTimestamp - depositTimestamp)
+        const depositAmount = parseFloat(deposit.amountRaw || '0') / DECIMAL_DIVISOR
+        
+        // Match if within 10 seconds and amount is within 5% of expected (100x mint amount)
+        if (timeDiff <= 10000) {
+          const ratio = depositAmount / expectedDepositAmount
+          if (ratio >= 0.95 && ratio <= 1.05) {
+            depositsBySignature.set(mintSig, deposit)
+            matchedDacbMints.add(mintSig)
+            matchedDacbDeposits.add(depositSig)
+            break
+          }
+        }
+      }
+    })
+
+    // Collect all unique signatures
+    const allSignatures = new Set<string>()
+    mintsBySignature.forEach((_, sig) => allSignatures.add(sig))
+    burnsBySignature.forEach((_, sig) => allSignatures.add(sig))
+    transfersBySignature.forEach((_, sig) => allSignatures.add(sig))
+    depositsBySignature.forEach((_, sig) => allSignatures.add(sig))
+
+    // Build combined transactions
+    const combinedTransactions: Array<{
+      type: 'mint' | 'burn' | 'transfer' | 'mint-with-deposit' | 'burn-with-release'
+      timestamp: string
+      signature?: string
+      mint?: TokenMint
+      burn?: TokenBurn
+      transfer?: TokenTransfer
+      deposit?: WrapperTransfer
+      release?: WrapperTransfer
+    }> = []
+
+    // Track processed signatures to avoid duplicates
+    const processedSignatures = new Set<string>()
+
+    // Process transactions with signatures (can be combined)
+    allSignatures.forEach(sig => {
+      const mint = mintsBySignature.get(sig)
+      const burn = burnsBySignature.get(sig)
+      const transfer = transfersBySignature.get(sig)
+      const deposit = depositsBySignature.get(sig)
+
+      // Mint with matching deposit (wrap transaction)
+      if (mint && deposit) {
+        combinedTransactions.push({
+          type: 'mint-with-deposit',
+          timestamp: mint.timestamp,
+          signature: sig,
+          mint,
+          deposit
+        })
+        processedSignatures.add(sig)
+        return
+      }
+
+      // Burn with matching release (unwrap transaction)
+      if (burn && deposit) {
+        combinedTransactions.push({
+          type: 'burn-with-release',
+          timestamp: burn.timestamp,
+          signature: sig,
+          burn,
+          release: deposit
+        })
+        processedSignatures.add(sig)
+        return
+      }
+
+      // Standalone transactions
+      if (mint) {
+        combinedTransactions.push({
+          type: 'mint',
+          timestamp: mint.timestamp,
+          signature: sig,
+          mint
+        })
+        processedSignatures.add(sig)
+      } else if (burn) {
+        combinedTransactions.push({
+          type: 'burn',
+          timestamp: burn.timestamp,
+          signature: sig,
+          burn
+        })
+        processedSignatures.add(sig)
+      } else if (transfer) {
+        combinedTransactions.push({
+          type: 'transfer',
+          timestamp: transfer.timestamp,
+          signature: sig,
+          transfer
+        })
+        processedSignatures.add(sig)
+      } else if (deposit) {
+        // Standalone deposit (shouldn't happen often, but handle it)
+        combinedTransactions.push({
+          type: 'transfer', // Treat as transfer for display
+          timestamp: deposit.timestamp,
+          signature: sig,
+          transfer: undefined,
+          deposit
+        })
+        processedSignatures.add(sig)
+      }
+    })
+
+    // Add transactions without signatures (can't be grouped)
+    allMints.value.forEach(mint => {
+      if (!mint.signature) {
+        combinedTransactions.push({
+          type: 'mint',
+          timestamp: mint.timestamp,
+          mint
+        })
+      }
+    })
+
+    // Add burns without signatures or that weren't matched
+    allBurns.value.forEach(burn => {
+      const sig = (burn as any).signature
+      if (!sig || !processedSignatures.has(sig.toLowerCase())) {
+        // This burn wasn't processed above (no signature or wasn't matched)
+        combinedTransactions.push({
+          type: 'burn',
+          timestamp: burn.timestamp,
+          burn
+        })
+      }
+    })
+
+    allTransfers.value.forEach(transfer => {
+      if (!transfer.signature) {
+        combinedTransactions.push({
+          type: 'transfer',
+          timestamp: transfer.timestamp,
+          transfer
+        })
+      }
+    })
+
+    // Add wrapper transfers (deposits) without signatures or that weren't matched
+    wrapperTransfers.value.forEach(deposit => {
+      const sig = deposit.signature
+      if (!sig || !processedSignatures.has(sig.toLowerCase())) {
+        // This deposit wasn't processed above (no signature or wasn't matched)
+        combinedTransactions.push({
+          type: 'transfer',
+          timestamp: deposit.timestamp,
+          deposit
+        })
+      }
+    })
+
+    // Sort by timestamp desc
+    return combinedTransactions.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime()
+      const timeB = new Date(b.timestamp).getTime()
+      return timeB - timeA
+    })
+  })
 
   return {
     // Individual token data
@@ -499,6 +801,8 @@ export const useTokenWrapperStore = defineStore('tokenWrapper', () => {
     allMints,
     allBurns,
     allTransfers,
+    allTransactions,
+    wrapperTransfers,
     loading,
     error,
     dacBloonsStats,

@@ -36,30 +36,16 @@
             :show-summary="false"
             :get-row-class="getLeaderboardRowClass"
           >
-            <template #cell-rank="{ value, row }">
+            <template #cell-rank="{ value }">
               <div class="rank-cell number-cell-content">
                 <span>{{ value }}</span>
-                <div class="faction-logo-container">
-                  <img
-                    v-if="getFactionLogo(row.walletAddress)"
-                    :src="getFactionLogo(row.walletAddress)"
-                    :alt="getFaction(row.walletAddress) || ''"
-                    class="faction-logo-small"
-                  />
-                </div>
               </div>
             </template>
-            <template #cell-wallet="{ value, row }">
-              <div class="wallet-cell">
-                <span :class="getFactionClass(row.walletAddress)">
-                  {{ getWalletDisplayName(row.walletAddress) }}
-                </span>
-                <BaseCopyButton
-                  :text-to-copy="row.walletAddress"
-                  size="small"
-                  tooltip="Copy wallet address"
-                />
-              </div>
+            <template #cell-wallet="{ row }">
+              <BaseWalletDisplay
+                :wallet="row.walletAddress"
+                :show-copy-button="true"
+              />
             </template>
             <template #cell-currentHoldings="{ value }">
               <span>{{ formatNumber(value) }} DACB</span>
@@ -93,43 +79,32 @@
             :show-summary="false"
             :get-row-class="getLeaderboardRowClass"
           >
-            <template #cell-rank="{ value, row }">
+            <template #cell-rank="{ value }">
               <div class="rank-cell number-cell-content">
                 <span>{{ value }}</span>
-                <div class="faction-logo-container">
-                  <img
-                    v-if="getFactionLogo(row.walletAddress)"
-                    :src="getFactionLogo(row.walletAddress)"
-                    :alt="getFaction(row.walletAddress) || ''"
-                    class="faction-logo-small"
-                  />
-                </div>
               </div>
             </template>
-            <template #cell-wallet="{ value, row }">
-              <div class="wallet-cell">
-                <span :class="getFactionClass(row.walletAddress)">
-                  {{ getWalletDisplayName(row.walletAddress) }}
-                </span>
-                <BaseCopyButton
-                  :text-to-copy="row.walletAddress"
-                  size="small"
-                  tooltip="Copy wallet address"
-                />
-              </div>
+            <template #cell-wallet="{ row }">
+              <BaseWalletDisplay
+                :wallet="row.walletAddress"
+                :show-copy-button="true"
+              />
             </template>
-            <template #cell-costBasis="{ value, row }">
+            <template #cell-currentHoldings="{ value }">
+              <span>{{ formatNumber(value) }} DAOB</span>
+            </template>
+            <template #cell-costBasis="{ value }">
               <span>{{ formatNumber(value) }} POLIS</span>
             </template>
-            <template #cell-currentValue="{ value, row }">
+            <template #cell-currentValue="{ value }">
               <span>{{ formatNumber(value) }} POLIS</span>
             </template>
-            <template #cell-return="{ value, row }">
+            <template #cell-return="{ value }">
               <span :class="{ 'return-positive': value > 0, 'return-negative': value < 0 }">
                 {{ formatNumber(value) }}%
               </span>
             </template>
-            <template #cell-returnAmount="{ value, row }">
+            <template #cell-returnAmount="{ value }">
               <span :class="{ 'return-positive': value > 0, 'return-negative': value < 0 }">
                 {{ formatNumber(value) }} POLIS
               </span>
@@ -144,7 +119,7 @@
       <div class="transactions-header">
         <h2>Transaction History</h2>
         <button 
-          v-if="!loading && (allMints.length > 0 || allBurns.length > 0 || allTransfers.length > 0)"
+          v-if="!loading && allTransactions.length > 0"
           class="toggle-button"
           @click="showTransactions = !showTransactions"
           :aria-expanded="showTransactions"
@@ -161,62 +136,58 @@
       <div v-if="!loading && (allMints.length > 0 || allBurns.length > 0 || allTransfers.length > 0)" class="transactions-content">
         <div class="transactions-summary">
           <div class="summary-item">
-            <span class="summary-label">Total Mints:</span>
+            <span class="summary-label">Total Transactions:</span>
+            <span class="summary-value">{{ allTransactions.length }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Mints:</span>
             <span class="summary-value">{{ allMints.length }}</span>
           </div>
           <div class="summary-item">
-            <span class="summary-label">Total Burns:</span>
+            <span class="summary-label">Burns:</span>
             <span class="summary-value">{{ allBurns.length }}</span>
           </div>
           <div class="summary-item">
-            <span class="summary-label">Total Transfers:</span>
+            <span class="summary-label">Transfers:</span>
             <span class="summary-value">{{ allTransfers.length }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Deposits:</span>
+            <span class="summary-value">{{ wrapperTransfers.length }}</span>
           </div>
         </div>
 
         <div v-show="showTransactions">
-          <!-- Mints Table -->
-          <div v-if="allMints.length > 0" class="transaction-table-section">
-            <h3>Mints</h3>
+          <!-- Combined Transactions Table -->
+          <div v-if="allTransactions.length > 0" class="transaction-table-section">
+            <h3>All Transactions</h3>
             <DataTable
               title=""
-              :columns="mintsColumns"
-              :data="mintsTableData"
+              :columns="combinedTransactionsColumns"
+              :data="combinedTransactionsData"
               :show-summary="false"
               :get-row-class="getTransactionRowClass"
             >
+              <template #cell-type="{ value }">
+                <span class="transaction-type-badge" :class="`transaction-type-${value.replace('-with-', '-')}`">
+                  {{ value.replace('-with-deposit', ' + Deposit').replace('-with-release', ' + Release').toUpperCase() }}
+                </span>
+              </template>
+              <template #cell-amount="{ value, row }">
+                <span v-if="value !== null && value !== undefined">
+                  {{ formatNumber(value) }} {{ row.token || '' }}
+                </span>
+                <span v-else>-</span>
+              </template>
+              <template #cell-depositAmount="{ value, row }">
+                <span v-if="value !== null && value !== undefined">
+                  {{ formatNumber(value) }} {{ row.depositToken || '' }}
+                </span>
+                <span v-else>-</span>
+              </template>
               <template #cell-ownerDisplay="{ value, row }">
                 <span :class="row.ownerDisplayClass">{{ value }}</span>
               </template>
-            </DataTable>
-          </div>
-
-          <!-- Burns Table -->
-          <div v-if="allBurns.length > 0" class="transaction-table-section">
-            <h3>Burns</h3>
-            <DataTable
-              title=""
-              :columns="burnsColumns"
-              :data="burnsTableData"
-              :show-summary="false"
-              :get-row-class="getTransactionRowClass"
-            >
-              <template #cell-ownerDisplay="{ value, row }">
-                <span :class="row.ownerDisplayClass">{{ value }}</span>
-              </template>
-            </DataTable>
-          </div>
-
-          <!-- Transfers Table -->
-          <div v-if="allTransfers.length > 0" class="transaction-table-section">
-            <h3>Transfers</h3>
-            <DataTable
-              title=""
-              :columns="transfersColumns"
-              :data="transfersTableData"
-              :show-summary="false"
-              :get-row-class="getTransactionRowClass"
-            >
               <template #cell-fromAccountDisplay="{ value, row }">
                 <span :class="row.fromAccountDisplayClass">{{ value }}</span>
               </template>
@@ -228,7 +199,7 @@
         </div>
       </div>
 
-      <BaseMessage v-if="!loading && allMints.length === 0 && allBurns.length === 0 && allTransfers.length === 0" type="empty">
+      <BaseMessage v-if="!loading && allTransactions.length === 0" type="empty">
         No transactions found.
       </BaseMessage>
     </div>
@@ -243,12 +214,17 @@ import { useWalletStore } from '../stores/wallet'
 import { usePlayerProfilesStore } from '../stores/playerProfiles'
 import DataTable, { type TableColumn } from '../components/DataTable.vue'
 import BaseMessage from '../components/BaseMessage.vue'
-import { formatDate, formatWallet, formatNumberOptimized } from '../utils/formatters'
-import BaseCopyButton from '../components/BaseCopyButton.vue'
+import BaseWalletDisplay from '../components/BaseWalletDisplay.vue'
+import { formatDate, formatNumberOptimized } from '../utils/formatters'
+import { useWalletDisplay } from '../composables/useWalletDisplay'
+import { DECIMAL_DIVISOR } from '../utils/constants'
+import type { TokenMint, TokenBurn, TokenTransfer } from '../services/tokenWrapperService'
+import type { WrapperTransfer } from '../services/tokenWrapperService'
 
 const tokenWrapperStore = useTokenWrapperStore()
 const walletStore = useWalletStore()
 const playerProfilesStore = usePlayerProfilesStore()
+const { getWalletDisplayName, getFactionClass, getTokenDisplayName, getWalletHighlightClass } = useWalletDisplay()
 
 const loading = computed(() => tokenWrapperStore.loading)
 const error = computed(() => tokenWrapperStore.error)
@@ -259,6 +235,8 @@ const dacbWrapRatio = computed(() => tokenWrapperStore.dacbWrapRatio)
 const allMints = computed(() => tokenWrapperStore.allMints)
 const allBurns = computed(() => tokenWrapperStore.allBurns)
 const allTransfers = computed(() => tokenWrapperStore.allTransfers)
+const allTransactions = computed(() => tokenWrapperStore.allTransactions)
+const wrapperTransfers = computed(() => tokenWrapperStore.wrapperTransfers)
 
 const showTransactions = ref(false)
 
@@ -272,64 +250,6 @@ onMounted(async () => {
     await playerProfilesStore.fetchProfiles()
   }
 })
-
-// Get username for a wallet
-function getUsername(wallet: string): string | null {
-  if (!wallet) return null
-  return playerProfilesStore.getUsername(wallet)
-}
-
-// Get wallet display name - checks guild wallet name, username, or formatted wallet
-function getWalletDisplayName(wallet: string): string {
-  if (!wallet) return 'Unknown'
-  // Check for guild wallet name first
-  const guildName = tokenWrapperStore.getGuildWalletName(wallet)
-  if (guildName) return guildName
-  // Check for username
-  const username = getUsername(wallet)
-  if (username) return username
-  // Fall back to formatted wallet address
-  return formatWallet(wallet)
-}
-
-// Get token display name - checks token name mapping or formatted mint address
-function getTokenDisplayName(tokenMint: string): string {
-  if (!tokenMint) return 'Unknown'
-  // Check for token name first
-  const tokenName = tokenWrapperStore.getTokenName(tokenMint)
-  if (tokenName) return tokenName
-  // Fall back to formatted mint address
-  return formatWallet(tokenMint)
-}
-
-// Get faction for a wallet
-function getFaction(wallet: string): string | null {
-  if (!wallet) return null
-  return playerProfilesStore.getFaction(wallet)
-}
-
-// Get faction class for styling
-function getFactionClass(wallet: string): string {
-  if (!wallet) return ''
-  const faction = getFaction(wallet)
-  if (!faction) return ''
-  if (faction === 'MUD') return 'faction-mud'
-  if (faction === 'USTUR') return 'faction-ustur'
-  if (faction === 'ONI') return 'faction-oni'
-  return ''
-}
-
-// Get faction logo path - using raw GitHub URLs for reliable GitHub Pages deployment
-function getFactionLogo(wallet: string): string | undefined {
-  if (!wallet) return undefined
-  const faction = getFaction(wallet)
-  if (!faction) return undefined
-  const baseUrl = 'https://raw.githubusercontent.com/DecentraGuild/SAWT/main/public'
-  if (faction === 'MUD') return `${baseUrl}/MUD.svg`
-  if (faction === 'USTUR') return `${baseUrl}/Ustur.svg`
-  if (faction === 'ONI') return `${baseUrl}/ONI.svg`
-  return undefined
-}
 
 // Watch for endDate changes and update store
 watch(() => walletStore.endDate, (newEndDate) => {
@@ -393,11 +313,7 @@ function getLeaderboardRowClass(row: any): string {
   const rowWalletLower = row.walletAddress.toLowerCase()
   
   if (walletLower === rowWalletLower) {
-    const faction = getFaction(row.walletAddress)
-    if (faction === 'MUD') return 'wallet-highlight-faction-mud'
-    if (faction === 'USTUR') return 'wallet-highlight-faction-ustur'
-    if (faction === 'ONI') return 'wallet-highlight-faction-oni'
-    return 'wallet-highlight-default'
+    return getWalletHighlightClass(row.walletAddress)
   }
   return ''
 }
@@ -415,6 +331,7 @@ const mintsColumns: TableColumn[] = [
 // Burns columns
 const burnsColumns: TableColumn[] = [
   { key: 'timestamp', label: 'Date', format: 'text' },
+  { key: 'token', label: 'Token', format: 'text' },
   { key: 'amount', label: 'Amount', format: 'number' },
   { key: 'account', label: 'Account', format: 'text', class: 'hash-cell' },
   { key: 'ownerDisplay', label: 'Owner', format: 'text', class: 'hash-cell' },
@@ -431,9 +348,17 @@ const transfersColumns: TableColumn[] = [
   { key: 'instruction', label: 'Instruction', format: 'text', class: 'hash-cell' }
 ]
 
-// Constants for decimal conversion
-const TOKEN_DECIMALS = 8
-const DECIMAL_DIVISOR = Math.pow(10, TOKEN_DECIMALS)
+// Combined transactions columns
+const combinedTransactionsColumns: TableColumn[] = [
+  { key: 'timestamp', label: 'Date', format: 'text' },
+  { key: 'type', label: 'Type', format: 'text' },
+  { key: 'amount', label: 'Amount', format: 'text' },
+  { key: 'depositAmount', label: 'Deposit/Release', format: 'text' },
+  { key: 'ownerDisplay', label: 'Owner/From', format: 'text', class: 'hash-cell' },
+  { key: 'toAccountDisplay', label: 'To', format: 'text', class: 'hash-cell' },
+  { key: 'instruction', label: 'Instruction', format: 'text', class: 'hash-cell' }
+]
+
 
 // Get row class for transaction highlighting (if wallet matches, with faction colors)
 function getTransactionRowClass(row: any): string {
@@ -452,11 +377,7 @@ function getTransactionRowClass(row: any): string {
   }
   
   if (matchingWallet) {
-    const faction = getFaction(matchingWallet)
-    if (faction === 'MUD') return 'wallet-highlight-faction-mud'
-    if (faction === 'USTUR') return 'wallet-highlight-faction-ustur'
-    if (faction === 'ONI') return 'wallet-highlight-faction-oni'
-    return 'wallet-highlight-default'
+    return getWalletHighlightClass(matchingWallet)
   }
   
   return ''
@@ -472,11 +393,11 @@ const mintsTableData = computed(() => {
       timestamp: formatDate(mint.timestamp),
       mint: getTokenDisplayName(mint.mint),
       amount: parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR,
-      account: formatWallet(mint.account),
+      account: mint.account.slice(0, 6) + '...' + mint.account.slice(-6),
       owner: owner, // Store full address for highlighting
       ownerDisplay: getWalletDisplayName(owner),
       ownerDisplayClass: getFactionClass(owner),
-      instruction: formatWallet(mint.byInstruction)
+      instruction: getTokenDisplayName(mint.byInstruction) || mint.byInstruction.slice(0, 6) + '...' + mint.byInstruction.slice(-6)
     }
   })
 })
@@ -486,15 +407,17 @@ const burnsTableData = computed(() => {
   return allBurns.value.map(burn => {
     // Use owner if available, otherwise fall back to account address
     const owner = burn.solanaAccountByAccount?.owner || burn.account || 'N/A'
+    const tokenName = getTokenDisplayName(burn.mint)
     
     return {
       timestamp: formatDate(burn.timestamp),
+      token: tokenName,
       amount: parseFloat(burn.amountRaw || '0') / DECIMAL_DIVISOR,
-      account: formatWallet(burn.account),
+      account: burn.account.slice(0, 6) + '...' + burn.account.slice(-6),
       owner: owner, // Store full address for highlighting
       ownerDisplay: getWalletDisplayName(owner),
       ownerDisplayClass: getFactionClass(owner),
-      instruction: formatWallet(burn.byInstruction)
+      instruction: getTokenDisplayName(burn.byInstruction) || burn.byInstruction.slice(0, 6) + '...' + burn.byInstruction.slice(-6)
     }
   })
 })
@@ -516,8 +439,109 @@ const transfersTableData = computed(() => {
       toAccount: toOwner, // Store full address for highlighting
       toAccountDisplay: getWalletDisplayName(toOwner),
       toAccountDisplayClass: getFactionClass(toOwner),
-      instruction: formatWallet(transfer.byInstruction)
+      instruction: getTokenDisplayName(transfer.byInstruction) || transfer.byInstruction.slice(0, 6) + '...' + transfer.byInstruction.slice(-6)
     }
+  })
+})
+
+// Combined transactions table data
+const combinedTransactionsData = computed(() => {
+  return allTransactions.value.map((tx: any) => {
+    const baseData: any = {
+      timestamp: formatDate(tx.timestamp),
+      type: tx.type,
+      depositAmount: null,
+      depositToken: null,
+      instruction: 'N/A'
+    }
+
+    if (tx.type === 'mint-with-deposit') {
+      // Mint with matching deposit (wrap transaction)
+      const mint = tx.mint as TokenMint
+      const deposit = tx.deposit as WrapperTransfer
+      const owner = mint.solanaAccountByAccount?.owner || mint.account || 'N/A'
+      
+      baseData.token = getTokenDisplayName(mint.mint)
+      baseData.amount = parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR
+      baseData.depositAmount = parseFloat(deposit.amountRaw || '0') / DECIMAL_DIVISOR
+      baseData.depositToken = getTokenDisplayName(deposit.mint)
+      baseData.owner = owner
+      baseData.ownerDisplay = getWalletDisplayName(owner)
+      baseData.ownerDisplayClass = getFactionClass(owner)
+      baseData.toAccountDisplay = '-'
+      baseData.toAccountDisplayClass = ''
+      baseData.instruction = mint.byInstruction ? (getTokenDisplayName(mint.byInstruction) || mint.byInstruction.slice(0, 6) + '...' + mint.byInstruction.slice(-6)) : 'N/A'
+    } else if (tx.type === 'burn-with-release') {
+      // Burn with matching release (unwrap transaction)
+      const burn = tx.burn as TokenBurn
+      const release = tx.release as WrapperTransfer
+      const owner = burn.solanaAccountByAccount?.owner || burn.account || 'N/A'
+      
+      baseData.token = getTokenDisplayName(burn.mint)
+      baseData.amount = parseFloat(burn.amountRaw || '0') / DECIMAL_DIVISOR
+      baseData.depositAmount = parseFloat(release.amountRaw || '0') / DECIMAL_DIVISOR
+      baseData.depositToken = getTokenDisplayName(release.mint)
+      baseData.owner = owner
+      baseData.ownerDisplay = getWalletDisplayName(owner)
+      baseData.ownerDisplayClass = getFactionClass(owner)
+      baseData.toAccountDisplay = '-'
+      baseData.toAccountDisplayClass = ''
+      baseData.instruction = burn.byInstruction ? (getTokenDisplayName(burn.byInstruction) || burn.byInstruction.slice(0, 6) + '...' + burn.byInstruction.slice(-6)) : 'N/A'
+    } else if (tx.type === 'mint') {
+      const mint = tx.mint as TokenMint
+      const owner = mint.solanaAccountByAccount?.owner || mint.account || 'N/A'
+      
+      baseData.token = getTokenDisplayName(mint.mint)
+      baseData.amount = parseFloat(mint.amountRaw || '0') / DECIMAL_DIVISOR
+      baseData.owner = owner
+      baseData.ownerDisplay = getWalletDisplayName(owner)
+      baseData.ownerDisplayClass = getFactionClass(owner)
+      baseData.toAccountDisplay = '-'
+      baseData.toAccountDisplayClass = ''
+      baseData.instruction = mint.byInstruction ? (getTokenDisplayName(mint.byInstruction) || mint.byInstruction.slice(0, 6) + '...' + mint.byInstruction.slice(-6)) : 'N/A'
+    } else if (tx.type === 'burn') {
+      const burn = tx.burn as TokenBurn
+      const owner = burn.solanaAccountByAccount?.owner || burn.account || 'N/A'
+      
+      baseData.token = getTokenDisplayName(burn.mint)
+      baseData.amount = parseFloat(burn.amountRaw || '0') / DECIMAL_DIVISOR
+      baseData.owner = owner
+      baseData.ownerDisplay = getWalletDisplayName(owner)
+      baseData.ownerDisplayClass = getFactionClass(owner)
+      baseData.toAccountDisplay = '-'
+      baseData.toAccountDisplayClass = ''
+      baseData.instruction = burn.byInstruction ? (getTokenDisplayName(burn.byInstruction) || burn.byInstruction.slice(0, 6) + '...' + burn.byInstruction.slice(-6)) : 'N/A'
+    } else if (tx.type === 'transfer') {
+      const transfer = tx.transfer as TokenTransfer
+      if (transfer) {
+        const fromOwner = transfer.solanaAccountByFromAccount?.owner || transfer.fromAccount || 'N/A'
+        const toOwner = transfer.solanaAccountByToAccount?.owner || transfer.toAccount || 'N/A'
+        
+        baseData.token = getTokenDisplayName(transfer.mint)
+        baseData.amount = parseFloat(transfer.amountRaw || '0') / DECIMAL_DIVISOR
+        baseData.owner = fromOwner
+        baseData.ownerDisplay = getWalletDisplayName(fromOwner)
+        baseData.ownerDisplayClass = getFactionClass(fromOwner)
+        baseData.toAccount = toOwner
+        baseData.toAccountDisplay = getWalletDisplayName(toOwner)
+        baseData.toAccountDisplayClass = getFactionClass(toOwner)
+        baseData.instruction = transfer.byInstruction ? (getTokenDisplayName(transfer.byInstruction) || transfer.byInstruction.slice(0, 6) + '...' + transfer.byInstruction.slice(-6)) : 'N/A'
+      } else if (tx.deposit) {
+        // Standalone deposit
+        const deposit = tx.deposit as WrapperTransfer
+        baseData.token = getTokenDisplayName(deposit.mint)
+        baseData.amount = parseFloat(deposit.amountRaw || '0') / DECIMAL_DIVISOR
+        baseData.owner = deposit.fromAccount || 'N/A'
+        baseData.ownerDisplay = getWalletDisplayName(deposit.fromAccount)
+        baseData.ownerDisplayClass = getFactionClass(deposit.fromAccount)
+        baseData.toAccount = deposit.toAccount || 'N/A'
+        baseData.toAccountDisplay = getWalletDisplayName(deposit.toAccount)
+        baseData.toAccountDisplayClass = getFactionClass(deposit.toAccount)
+        baseData.instruction = deposit.byInstruction ? (getTokenDisplayName(deposit.byInstruction) || deposit.byInstruction.slice(0, 6) + '...' + deposit.byInstruction.slice(-6)) : 'N/A'
+      }
+    }
+
+    return baseData
   })
 })
 </script>
@@ -762,6 +786,40 @@ const transfersTableData = computed(() => {
   width: 20px;
   height: 20px;
   object-fit: contain;
+}
+
+.transaction-type-badge {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.transaction-type-mint {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.transaction-type-burn {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.transaction-type-transfer {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.transaction-type-deposit {
+  background-color: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.3);
 }
 </style>
 

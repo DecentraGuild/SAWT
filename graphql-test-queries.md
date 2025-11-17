@@ -138,7 +138,7 @@ query TestArrayConditionMints {
         "2S3exGdVnjvPCLJ6UbMe55mJZJ9AKPHZHitLPfFKViTJ"
       ]}
     }
-    first: 10
+    first: 100
     orderBy: TIMESTAMP_DESC
   ) {
     nodes {
